@@ -1,0 +1,35 @@
+{
+  "name": "Sən hələ də məni axtarırsan? — Alice",
+  "short_name": "Alice · BDU",
+  "description": "Yağışlı Bakıda, BDU-nun dəhlizlərində Leo Alice-i axtarır. Atmosferik 2D psixoloji qorxu platforması.",
+  "lang": "az",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "landscape",
+  "background_color": "#05040a",
+  "theme_color": "#08060a",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

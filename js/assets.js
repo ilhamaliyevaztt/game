@@ -1,11 +1,17 @@
 /* ============================================================
    assets.js — sprite manifest + loader with progress
+   blitH() scales any sprite to a target height so art of
+   different pixel sizes composes consistently.
    ============================================================ */
 (function (global) {
   'use strict';
 
   const MANIFEST = {
     // --- backgrounds ---
+    bg_baku:      'assets/bg_baku.png',
+    bg_bdu:       'assets/bg_bdu.png',
+    bg_campus:    'assets/bg_campus.png',
+    bg_class:     'assets/bg_class.png',
     bg_pier:      'assets/bg_pier.png',
     bg_forest:    'assets/bg_forest.png',
     bg_house:     'assets/bg_house.png',
@@ -17,7 +23,7 @@
     tex_ground:   'assets/tex_ground.png',
     tile_brick:   'assets/tile_brick.png',
 
-    // --- Leo frames ---
+    // --- Leo (rain-coat set) ---
     leo_0:        'assets/leo_0.png',
     leo_1:        'assets/leo_1.png',
     leo_2:        'assets/leo_2.png',
@@ -27,11 +33,23 @@
     leo_small:    'assets/leo_small.png',
     leo_back:     'assets/leo_back.png',
 
+    // --- Leo (BDU uniform set) ---
+    leo_a0:       'assets/leo_a0.png',
+    leo_a1:       'assets/leo_a1.png',
+    leo_a2:       'assets/leo_a2.png',
+    leo_a3:       'assets/leo_a3.png',
+    leo_shoot2:   'assets/leo_shoot2.png',
+
     // --- Alice ---
     alice_0:      'assets/alice_0.png',
     alice_1:      'assets/alice_1.png',
     alice_2:      'assets/alice_2.png',
     alice_ghost:  'assets/alice_ghost.png',
+    alice_a0:     'assets/alice_a0.png',
+    alice_a1:     'assets/alice_a1.png',
+    alice_a2:     'assets/alice_a2.png',
+    alice_a3:     'assets/alice_a3.png',
+    alice_corrupt:'assets/alice_corrupt.png',
 
     // --- monsters ---
     mon_skull:    'assets/mon_skull.png',
@@ -40,6 +58,13 @@
     mon_shadow:   'assets/mon_shadow.png',
     mon_bride:    'assets/mon_bride.png',
     mon_eye:      'assets/mon_eye.png',
+    mon_stalker:  'assets/mon_stalker.png',
+    mon_hound:    'assets/mon_hound.png',
+    mon_crouch:   'assets/mon_crouch.png',
+    mon_lurk:     'assets/mon_lurk.png',
+    mon_horn:     'assets/mon_horn.png',
+    mon_veil:     'assets/mon_veil.png',
+    mon_eye2:     'assets/mon_eye2.png',
 
     // --- items ---
     i_bullets:    'assets/i_bullets.png',
@@ -104,7 +129,16 @@
     u_lock:       'assets/u_lock.png',
     u_mouse:      'assets/u_mouse.png',
     u_portal:     'assets/u_portal.png',
-    u_question:   'assets/u_question.png'
+    u_portal2:    'assets/u_portal2.png',
+    u_question:   'assets/u_question.png',
+    u_phone:      'assets/u_phone.png',
+    u_phone_alice:'assets/u_phone_alice.png',
+    u_msgbox:     'assets/u_msgbox.png',
+    u_pentagram:  'assets/u_pentagram.png',
+    u_blood3:     'assets/u_blood3.png',
+    u_blood4:     'assets/u_blood4.png',
+    p_leo_face:   'assets/p_leo_face.png',
+    p_alice_face: 'assets/p_alice_face.png'
   };
 
   const IMG = Object.create(null);
@@ -137,13 +171,9 @@
   }
 
   /** returns a real HTMLImageElement or null */
-  function img(key) {
-    return IMG[key] || null;
-  }
-  function has(key) {
-    return !!IMG[key];
-  }
-  /** natural size helper with fallback */
+  function img(key) { return IMG[key] || null; }
+  function has(key) { return !!IMG[key]; }
+
   function size(key) {
     const i = IMG[key];
     return i ? { w: i.naturalWidth || i.width, h: i.naturalHeight || i.height } : { w: 32, h: 32 };
@@ -169,5 +199,40 @@
     if (alpha !== undefined && alpha !== 1) ctx.globalAlpha = 1;
   }
 
-  global.Assets = { MANIFEST: MANIFEST, load: load, img: img, has: has, size: size, blit: blit };
+  /** draw anchored at bottom-centre, scaled so the sprite is `targetH` px tall */
+  function blitH(ctx, key, cx, bottomY, targetH, flip, alpha, maxW) {
+    const i = IMG[key];
+    if (!i) return;
+    const nw = i.naturalWidth || i.width;
+    const nh = i.naturalHeight || i.height;
+    if (!nw || !nh) return;
+    let s = targetH / nh;
+    if (maxW && nw * s > maxW) s = maxW / nw;
+    const w = nw * s, h = nh * s;
+    if (alpha !== undefined && alpha !== 1) ctx.globalAlpha = alpha;
+    if (flip) {
+      ctx.save();
+      ctx.translate(cx, bottomY);
+      ctx.scale(-1, 1);
+      ctx.drawImage(i, -w / 2, -h, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(i, cx - w / 2, bottomY - h, w, h);
+    }
+    if (alpha !== undefined && alpha !== 1) ctx.globalAlpha = 1;
+  }
+
+  /** intrinsic aspect helper (w/h) with fallback */
+  function aspect(key) {
+    const i = IMG[key];
+    if (!i) return 0.5;
+    const nh = i.naturalHeight || i.height;
+    return nh ? (i.naturalWidth || i.width) / nh : 0.5;
+  }
+
+  global.Assets = {
+    MANIFEST: MANIFEST, load: load, img: img, has: has, size: size,
+    blit: blit, blitH: blitH, aspect: aspect,
+    total: total
+  };
 })(window);

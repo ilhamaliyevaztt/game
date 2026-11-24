@@ -444,3 +444,158 @@ canvas#game{
 @media (hover:none) and (pointer:coarse){
   .keys{ display:none; }
 }
+
+/* ============================================================
+   v3 additions — difficulty, chapters, shop, mobile
+   ============================================================ */
+.panel-note{
+  margin:0 0 14px; font-family:var(--mono); font-size:10px; line-height:1.8;
+  letter-spacing:.06em; color:#7b6672;
+}
+.menu.row{ flex-direction:row; gap:10px; justify-content:center; flex-wrap:wrap; }
+.menu.row .btn{ flex:1; min-width:140px; }
+.inline-ico{ height:14px; width:auto; vertical-align:-2px; margin-right:4px; }
+
+/* ---------- difficulty ---------- */
+.diff-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+  margin:4px 0 20px;
+}
+.diff-card{
+  appearance:none; cursor:pointer; text-align:left;
+  padding:14px 12px;
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(196,58,74,.28);
+  border-radius:4px;
+  color:#cbbac2;
+  transition:border-color .16s, background .16s, transform .16s, box-shadow .16s;
+  font-family:var(--mono);
+}
+.diff-card:hover{ transform:translateY(-2px); border-color:rgba(224,65,88,.6); }
+.diff-card.sel{
+  border-color:rgba(224,65,88,.95);
+  background:linear-gradient(180deg, rgba(196,35,58,.2), rgba(120,12,28,.1));
+  box-shadow:0 0 24px rgba(196,35,58,.25), inset 0 0 30px rgba(120,10,25,.18);
+}
+.diff-head{
+  display:block; font-size:14px; letter-spacing:.16em; text-transform:uppercase; color:#f4e9ee;
+}
+.diff-tag{
+  display:block; margin:3px 0 9px; font-size:9.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:#a05264;
+}
+.diff-card ul{ margin:0; padding-left:14px; font-size:10.5px; line-height:1.9; color:#9a8b95; }
+.diff-card.sel ul{ color:#d5c2ca; }
+
+/* ---------- chapters ---------- */
+.chapter-list{
+  display:flex; flex-direction:column; gap:7px;
+  max-height:46vh; overflow:auto; margin:0 0 18px; padding-right:4px;
+}
+.chapter-list::-webkit-scrollbar{ width:6px; }
+.chapter-list::-webkit-scrollbar-thumb{ background:rgba(196,58,74,.4); border-radius:3px; }
+.chapter-row{
+  appearance:none; cursor:pointer; text-align:left;
+  display:flex; align-items:center; gap:12px;
+  padding:11px 14px;
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(196,58,74,.22);
+  border-radius:3px; color:#cbbac2;
+  transition:border-color .14s, background .14s, transform .14s;
+  font-family:var(--mono);
+}
+.chapter-row:hover{ border-color:rgba(224,65,88,.65); background:rgba(196,35,58,.1); transform:translateX(2px); }
+.chapter-row.locked{ opacity:.42; cursor:not-allowed; }
+.chapter-row.locked:hover{ transform:none; border-color:rgba(196,58,74,.22); background:rgba(255,255,255,.022); }
+.chapter-row.done{ border-color:rgba(120,200,140,.34); }
+.ch-num{
+  flex:0 0 26px; font-size:15px; color:var(--red-soft); text-align:center;
+  border-right:1px solid rgba(196,58,74,.2); padding-right:10px;
+}
+.ch-txt{ flex:1; min-width:0; }
+.ch-txt b{ display:block; font-size:12.5px; letter-spacing:.08em; color:#f0dfe4; font-weight:500; }
+.ch-txt i{ display:block; font-size:10px; font-style:normal; color:#8b7883; margin-top:2px; }
+.ch-state{ font-size:11px; letter-spacing:.1em; color:#a05264; white-space:nowrap; }
+.chapter-row.done .ch-state{ color:#8ad0a0; }
+
+/* ---------- shop ---------- */
+.shop-balance{
+  display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap;
+}
+.shop-balance b{ color:#ffd98a; font-size:15px; display:inline-flex; align-items:center; }
+.shop-hint{ font-size:9.5px; letter-spacing:.08em; color:#6d5a64; }
+.shop-list{
+  display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
+  max-height:42vh; overflow:auto; margin:0 0 18px; padding-right:4px;
+}
+.shop-list::-webkit-scrollbar{ width:6px; }
+.shop-list::-webkit-scrollbar-thumb{ background:rgba(196,58,74,.4); border-radius:3px; }
+.shop-item{
+  appearance:none; cursor:pointer; text-align:left;
+  display:flex; align-items:center; gap:10px;
+  padding:9px 11px;
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(196,58,74,.22);
+  border-radius:3px; color:#cbbac2;
+  transition:border-color .14s, background .14s;
+  font-family:var(--mono);
+}
+.shop-item:hover{ border-color:rgba(224,65,88,.6); background:rgba(196,35,58,.1); }
+.shop-item.poor{ opacity:.55; }
+.shop-item.owned{ opacity:.7; border-color:rgba(120,200,140,.34); cursor:default; }
+.shop-ico{ height:26px; width:auto; flex:0 0 auto; image-rendering:pixelated; }
+.shop-txt{ flex:1; min-width:0; }
+.shop-txt b{ display:block; font-size:11.5px; color:#f0dfe4; font-weight:500; letter-spacing:.05em; }
+.shop-txt i{ display:block; font-size:9.5px; font-style:normal; color:#8b7883; margin-top:2px; }
+.shop-price{ font-size:11px; color:#ffd98a; white-space:nowrap; letter-spacing:.06em; }
+.shop-item.poor .shop-price{ color:#a81b2e; }
+.shop-item.owned .shop-price{ color:#8ad0a0; font-size:9.5px; }
+
+/* ---------- ending stat ---------- */
+.ending-stat{
+  margin-top:18px !important; padding-top:14px;
+  border-top:1px dashed rgba(196,58,74,.22);
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:#8b7883;
+}
+.ending-stat b{ color:#e04158; }
+
+.btn-ghost{ font-size:10px; opacity:.75; }
+
+/* ============================================================
+   mobile / touch tuning
+   ============================================================ */
+#touch{ padding:0 12px calc(14px + env(safe-area-inset-bottom, 0px)); }
+.tbtn{
+  width:56px; height:56px; font-size:18px;
+  -webkit-user-select:none; user-select:none;
+  touch-action:none;
+}
+.tbtn.sm{ width:44px; height:44px; font-size:14px; opacity:.8; }
+.touch-mid{ display:flex; align-items:flex-end; pointer-events:auto; padding-bottom:4px; }
+
+@media (max-width:900px){
+  .diff-grid{ grid-template-columns:1fr; gap:8px; }
+  .diff-card{ padding:10px 12px; display:flex; align-items:center; gap:10px; }
+  .diff-head{ flex:0 0 auto; }
+  .diff-tag{ margin:0; flex:0 0 auto; }
+  .diff-card ul{ display:none; }
+  .shop-list{ grid-template-columns:1fr; }
+  .panel{ padding:22px 20px; }
+  #objective{ display:none; }
+}
+
+@media (hover:none) and (pointer:coarse){
+  .keys{ display:none; }
+  .btn{ padding:13px 18px; font-size:12.5px; }
+  .chapter-row{ padding:13px 14px; }
+}
+
+@media (max-height:520px){
+  .panel{ padding:16px 18px; }
+  .panel-title{ font-size:18px; margin-bottom:4px; }
+  .panel-sub{ margin-bottom:12px; font-size:11.5px; }
+  .title-menu{ margin-top:16px; }
+  .game-title{ font-size:clamp(20px,4.4vw,40px); }
+  .chapter-list{ max-height:38vh; }
+  .ending-scroll{ max-height:34vh; }
+}

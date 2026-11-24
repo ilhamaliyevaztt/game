@@ -15,7 +15,7 @@
       anyPressed: false
     };
     this.prev = {};
-    this.touch = { left: false, right: false, jump: false, fire: false, interact: false };
+    this.touch = { left: false, right: false, jump: false, fire: false, interact: false, crouch: false };
     this.mouse = { x: 0, y: 0, down: false };
     this.enabled = true;
     this._bind();
@@ -106,6 +106,7 @@
     this.state.jump = this._kb('jump') || t.jump;
     this.state.fire = this._kb('fire') || t.fire;
     this.state.interact = this._kb('interact') || t.interact;
+    this.state.down = this._kb('down') || t.crouch;
   };
 
   Input.prototype._kb = function (act) {
@@ -125,7 +126,7 @@
   Input.prototype.releaseAll = function () {
     this.rawKb = {};
     this.mouse.down = false;
-    this.touch = { left: false, right: false, jump: false, fire: false, interact: false };
+    this.touch = { left: false, right: false, jump: false, fire: false, interact: false, crouch: false };
     this._syncTouch();
   };
 

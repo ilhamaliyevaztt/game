@@ -2,11 +2,17 @@
 <html lang="az">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#08060a" />
-<title>Sən hələ də məni axtarırsan? — Alice</title>
-<meta name="description" content="Yağışlı bir gecədə Leo, Alice-i axtarmağa çıxır. Atmosferik 2D psixoloji qorxu platforması." />
-<link rel="icon" href="assets/mon_eye.png" />
+<title>Sən hələ də məni axtarırsan? — Alice · BDU</title>
+<meta name="description" content="Yağışlı Bakıda, BDU-nun dəhlizlərində Leo Alice-i axtarır. Atmosferik 2D psixoloji qorxu platforması — 7 bölmə, 3 çətinlik, mobil üçün." />
+<link rel="icon" href="assets/icon-192.png" />
+<link rel="apple-touch-icon" href="assets/icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Alice · BDU" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -26,9 +32,13 @@
         <img src="assets/i_key.png" alt="" class="chip-icon" />
         <span id="key-count">0</span>
       </div>
-      <div class="hud-chip" title="Sikkə">
+      <div class="hud-chip" title="Pul">
         <img src="assets/i_coin.png" alt="" class="chip-icon" />
         <span id="coin-count">0</span>
+      </div>
+      <div class="hud-chip" title="Çiçək">
+        <img src="assets/i_gem.png" alt="" class="chip-icon" />
+        <span id="flower-count">0</span>
       </div>
     </div>
     <div class="hud-right">
@@ -40,11 +50,11 @@
   <!-- ================= DIALOG ================= -->
   <div id="dialog" class="hidden" role="dialog" aria-live="polite">
     <div class="dialog-frame">
-      <img id="dialog-portrait" class="dialog-portrait" src="assets/alice_0.png" alt="" />
+      <img id="dialog-portrait" class="dialog-portrait" src="assets/alice_a0.png" alt="" />
       <div class="dialog-body">
         <div id="dialog-name" class="dialog-name">Alice</div>
         <p id="dialog-text" class="dialog-text"></p>
-        <div class="dialog-hint"><span id="dialog-hint-text">davam etmək üçün E / Space</span></div>
+        <div class="dialog-hint"><span>davam etmək üçün E / Space</span></div>
       </div>
     </div>
   </div>
@@ -59,6 +69,7 @@
       <p class="panel-sub">Qaranlıq səni gözləyir.</p>
       <div class="menu">
         <button class="btn btn-primary" data-act="resume">Davam et</button>
+        <button class="btn" data-act="shop">Mağaza</button>
         <button class="btn" data-act="restart">Bölməni yenidən başlat</button>
         <button class="btn" data-act="settings">Tənzimləmələr</button>
         <button class="btn" data-act="menu">Əsas menyu</button>
@@ -67,9 +78,8 @@
         <span class="kbd">A</span><span class="kbd">D</span> hərəkət
         <span class="kbd">Space</span> tullanma
         <span class="kbd">Shift</span> qaçış
-        <span class="kbd">S</span> əyilmək
         <span class="kbd">E</span> qarşılıqlı əlaqə
-        <span class="kbd">J</span>/<span class="kbd">Sol klik</span> atəş
+        <span class="kbd">J</span> atəş
         <span class="kbd">Esc</span> fasilə
       </div>
     </div>
@@ -97,6 +107,11 @@
         <label for="opt-crt">VHS effekti</label>
         <input id="opt-crt" type="checkbox" checked />
       </div>
+      <div class="setting-row">
+        <label for="opt-fx">Yüksək effektlər</label>
+        <input id="opt-fx" type="checkbox" checked />
+      </div>
+      <p class="panel-note">Zəif cihazda "Yüksək effektlər"i söndür — oyun daha rəvan işləyəcək.</p>
       <div class="menu">
         <button class="btn btn-primary" data-act="settings-back">Geri</button>
       </div>
@@ -107,16 +122,86 @@
   <div id="title" class="overlay title-screen">
     <div class="title-vignette"></div>
     <div class="title-inner">
-      <p class="title-kicker">bir psixoloji qorxu hekayəsi</p>
+      <p class="title-kicker">bir psixoloji qorxu hekayəsi · BDU</p>
       <h1 class="game-title">SƏN HƏLƏ DƏ<br /><span>MƏNİ AXTARIRSAN?</span></h1>
       <p class="title-tag">“Bəzən insan sevdiyi şeyləri itirməkdən qorxur.”</p>
       <div class="menu title-menu">
         <button class="btn btn-primary" id="btn-new">Yeni oyun</button>
         <button class="btn hidden" id="btn-continue">Davam et</button>
+        <button class="btn hidden" id="btn-chapters">Bölmələr</button>
+        <button class="btn" id="btn-shop-title">Mağaza</button>
         <button class="btn" id="btn-how">Necə oynanır</button>
         <button class="btn" id="btn-settings-title">Tənzimləmələr</button>
+        <button class="btn btn-ghost" id="btn-install">Tətbiqi quraşdır</button>
       </div>
-      <p class="title-foot">Qulaqlıq tövsiyə olunur · Qrafika: təqdim olunan asset dəsti</p>
+      <p class="title-foot">7 bölmə · 3 çətinlik · toxunma idarəsi · oflayn oynanır</p>
+    </div>
+  </div>
+
+  <!-- ================= DIFFICULTY ================= -->
+  <div id="difficulty" class="overlay hidden">
+    <div class="panel wide">
+      <h2 class="panel-title">Çətinliyi seç</h2>
+      <p class="panel-sub">Hər çətinlik oyunun bütün gedişini dəyişir — ürəklər, düşmən gücü, güllə miqdarı və xal.</p>
+      <div class="diff-grid">
+        <button class="diff-card" data-diff="easy">
+          <span class="diff-head">Asan</span>
+          <span class="diff-tag">Hekayə üçün</span>
+          <ul>
+            <li>5 ürək</li>
+            <li>Zəif düşmənlər</li>
+            <li>1.6× güllə</li>
+            <li>Parlaq mühit</li>
+          </ul>
+        </button>
+        <button class="diff-card sel" data-diff="normal">
+          <span class="diff-head">Orta</span>
+          <span class="diff-tag">Tövsiyə olunur</span>
+          <ul>
+            <li>4 ürək</li>
+            <li>Balanslı düşmənlər</li>
+            <li>Normal güllə</li>
+            <li>Tam atmosfer</li>
+          </ul>
+        </button>
+        <button class="diff-card" data-diff="hard">
+          <span class="diff-head">Çətin</span>
+          <span class="diff-tag">Cəsarətli üçün</span>
+          <ul>
+            <li>3 ürək</li>
+            <li>Davamlı + sürətli</li>
+            <li>0.6× güllə</li>
+            <li>Daha qaranlıq</li>
+          </ul>
+        </button>
+      </div>
+      <div class="menu row">
+        <button class="btn btn-primary" data-act="start-run" id="btn-start-run">Başla · Orta</button>
+        <button class="btn" data-act="difficulty-back">Geri</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CHAPTERS ================= -->
+  <div id="chapters" class="overlay hidden">
+    <div class="panel wide">
+      <h2 class="panel-title">Bölmələr</h2>
+      <p class="panel-sub">Açılmış bölmədən başlaya bilərsən. Pul və çiçəklər ümumidir.</p>
+      <div id="chapter-list" class="chapter-list"></div>
+      <div class="menu"><button class="btn" data-act="chapters-back">Geri</button></div>
+    </div>
+  </div>
+
+  <!-- ================= SHOP ================= -->
+  <div id="shop" class="overlay hidden">
+    <div class="panel wide">
+      <h2 class="panel-title">Mağaza</h2>
+      <p class="panel-sub shop-balance">
+        Pulun: <b><img src="assets/i_coin.png" alt="" class="inline-ico" /><span id="shop-wallet">0</span></b>
+        <span class="shop-hint">Pul oyunda sikkə yığmaqla qazanılır.</span>
+      </p>
+      <div id="shop-list" class="shop-list"></div>
+      <div class="menu"><button class="btn" data-act="shop-back">Geri</button></div>
     </div>
   </div>
 
@@ -126,18 +211,20 @@
       <h2 class="panel-title">Necə oynanır</h2>
       <div class="howto-grid">
         <div class="howto-row"><span class="kbd big">A</span><span class="kbd big">D</span><div>Sol / sağ hərəkət. <b>Shift</b> basılı saxla — qaç.</div></div>
-        <div class="howto-row"><span class="kbd big">Space</span><div>Tullanmaq. Divardan tutunmaq üçün tullanarkən divara doğru bas.</div></div>
-        <div class="howto-row"><span class="kbd big">S</span><div>Əyilmək — alçaq keçidlərdən keçmək üçün.</div></div>
-        <div class="howto-row"><span class="kbd big">E</span><div>Qarşılıqlı əlaqə: qapı, məktub, foto, Alice.</div></div>
-        <div class="howto-row"><span class="kbd big">J</span><div>Atəş (solda siçan düyməsi də işləyir). Güllə saxla!</div></div>
+        <div class="howto-row"><span class="kbd big">Space</span><div>Tullanmaq. Ledjlərə aşağıdan keçmək olar.</div></div>
+        <div class="howto-row"><span class="kbd big">S</span><div>Əyilmək — alçaq yerlərdə.</div></div>
+        <div class="howto-row"><span class="kbd big">E</span><div>Qarşılıqlı əlaqə: qapı, məktub, telefon, Alice, çiçək vermək.</div></div>
+        <div class="howto-row"><span class="kbd big">J</span><div>Atəş (siçan da işləyir). Güllə saxla!</div></div>
         <div class="howto-row"><span class="kbd big">Esc</span><div>Fasilə / menyu.</div></div>
       </div>
       <ul class="howto-tips">
-        <li><img src="assets/i_heart_full.png" alt="" /> Ürəklər həyatındır. <b>3</b> ürək — qaranlıqda diqqətli ol.</li>
+        <li><img src="assets/i_heart_full.png" alt="" /> Ürəklər həyatındır. Çətinlikdən asılı olaraq 3–5 ürək.</li>
         <li><img src="assets/i_medkit.png" alt="" /> Tibb qutusu bir ürək bərpa edir.</li>
         <li><img src="assets/i_key.png" alt="" /> Açar olmadan qıfıllı qapını aça bilməzsən.</li>
-        <li><img src="assets/i_letter.png" alt="" /> Məktub, foto və qeydlər hekayəni açır — hamısını tap.</li>
-        <li><img src="assets/mon_skull.png" alt="" /> Kəllələr səni görəndə qaçır. Güllə ilə dayandır.</li>
+        <li><img src="assets/i_coin.png" alt="" /> Sikkələr ümumi pulundur — mağazadan güllə, çiçək, lampa al.</li>
+        <li><img src="assets/i_gem.png" alt="" /> Ağ çiçəyi Alice-ə ver — sonu dəyişir.</li>
+        <li><img src="assets/i_letter.png" alt="" /> Məktub, foto və telefon hekayəni açır — hamısını tap.</li>
+        <li><img src="assets/mon_eye2.png" alt="" /> Öldüyün yerdən deyil, keçdiyin yoxlama nöqtəsindən davam edirsən.</li>
       </ul>
       <div class="menu"><button class="btn btn-primary" data-act="howto-back">Anladım</button></div>
     </div>
@@ -148,19 +235,20 @@
     <div class="panel death-panel">
       <h2 class="panel-title red">Sən itdin.</h2>
       <p class="panel-sub" id="death-quote">Qaranlıq səni uddu...</p>
+      <p class="panel-note">Yığdığın pul və öldürdüyün düşmənlər saxlanılır. Yoxlama nöqtəsindən davam et.</p>
       <div class="menu">
-        <button class="btn btn-primary" data-act="retry">Yenidən cəhd et</button>
-        <button class="btn" data-act="to-checkpoint">Yoxlama nöqtəsindən</button>
+        <button class="btn btn-primary" data-act="retry">Yoxlama nöqtəsindən</button>
+        <button class="btn" data-act="restart-fresh">Bölməni başdan başlat</button>
         <button class="btn" data-act="menu">Əsas menyu</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= LEVEL INTRO ================= -->
+  <!-- ================= LEVEL CARD ================= -->
   <div id="levelcard" class="hidden">
     <div class="levelcard-inner">
       <p class="lc-kicker" id="lc-kicker">Bölmə I</p>
-      <h2 class="lc-title" id="lc-title">Yağışlı küçə</h2>
+      <h2 class="lc-title" id="lc-title">Yağışlı Bakı</h2>
       <p class="lc-sub" id="lc-sub">—</p>
     </div>
   </div>
@@ -170,7 +258,7 @@
     <div class="panel wide ending-panel">
       <h2 class="panel-title red" id="ending-title">Son</h2>
       <div class="ending-scroll" id="ending-body"></div>
-      <div class="menu">
+      <div class="menu row">
         <button class="btn btn-primary" data-act="ending-menu">Əsas menyu</button>
         <button class="btn" data-act="ending-credits">Kreditlər</button>
       </div>
@@ -196,17 +284,20 @@
       <button class="tbtn" data-key="left" aria-label="Sol">◀</button>
       <button class="tbtn" data-key="right" aria-label="Sağ">▶</button>
     </div>
+    <div class="touch-mid">
+      <button class="tbtn sm" data-key="crouch" aria-label="Əyil">▾</button>
+    </div>
     <div class="touch-right">
+      <button class="tbtn" data-key="interact" aria-label="Qarşılıqlı">E</button>
       <button class="tbtn" data-key="fire" aria-label="Atəş">✦</button>
       <button class="tbtn" data-key="jump" aria-label="Tullan">▲</button>
-      <button class="tbtn" data-key="interact" aria-label="Qarşılıqlı">E</button>
     </div>
   </div>
 
   <!-- ================= LOADING ================= -->
   <div id="loading" class="overlay">
     <div class="load-wrap">
-      <img src="assets/u_portal.png" class="load-portal" alt="" />
+      <img src="assets/u_portal2.png" class="load-portal" alt="" />
       <p class="load-text">Qaranlıq yüklənir...</p>
       <div class="load-bar"><i id="load-fill"></i></div>
     </div>
@@ -215,6 +306,7 @@
   <div id="rotate-warn">Telefonu üfüqi tut — oyun geniş ekran üçündür.</div>
 </div>
 
+<script src="js/store.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/input.js"></script>

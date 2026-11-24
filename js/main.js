@@ -1,5 +1,5 @@
 /* ============================================================
-   main.js — bootstrap, RAF loop, first-gesture audio unlock
+   main.js — bootstrap, RAF loop, first-gesture audio unlock, PWA
    ============================================================ */
 (function () {
   'use strict';
@@ -34,6 +34,7 @@
     var dt = lastT ? (t - lastT) / 1000 : 0.016;
     lastT = t;
     if (dt > 0.06) dt = 0.06;
+    if (dt < 0) dt = 0.016;
 
     game._lastDt = dt;
 
@@ -45,44 +46,83 @@
     requestAnimationFrame(loop);
   }
 
-  Assets.load(function (p, name) {
+  /* ---------------- PWA ---------------- */
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    window.__deferredPrompt = e;
+  });
+
+  window.addEventListener('appinstalled', function () {
+    window.__deferredPrompt = null;
+    if (game) game.toast('Tətbiq quraşdırıldı', 'good');
+  });
+
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
+        console.warn('[sw] register failed', err && err.message);
+      });
+    });
+  }
+
+  /* ---------------- boot ---------------- */
+  Assets.load(function (p) {
     if (fill) fill.style.width = Math.round(p * 100) + '%';
   }).then(function () {
+    Store.load();
     game = new Game(canvas);
     window.__game = game;
+    game.diff = Store.diff();
 
-    // pre-create the brick pattern once so the first frame is not blank
     try { game._makePattern(game.ctx, 'tex_brick', 2.1); } catch (e) { }
 
     game.state = 'title';
     game.show('title');
     game.refreshContinue();
-
-    // title backdrop needs a first paint
     game.drawTitleBackdrop();
 
     hideLoading();
     requestAnimationFrame(loop);
 
-    // ---- global hotkeys that work outside play ----
+    // ---- global hotkeys outside play ----
     window.addEventListener('keydown', function (e) {
       if (e.code === 'Escape') {
         if (game.state === 'play') {
           game.state = 'pause';
+          game.persistRun();
           game.show('pause');
-          document.getElementById('hud').classList.add('hidden');
         } else if (game.state === 'pause') {
           game.action('resume');
-        } else if (game.state === 'dialog') {
-          // allow skipping the whole line queue with Esc? no - keep flow intact
+        } else if (game.state === 'select' || game.state === 'chapters' || game.state === 'shop') {
+          game.action('difficulty-back');
+        } else if (game.state === 'settings') {
+          game.action('settings-back');
         }
       }
     });
 
-    // safety: if the tab loses focus mid-jump, never leave keys stuck
     window.addEventListener('blur', function () { InputState.releaseAll(); });
 
-    console.log('[Alice] ready — assets:', Object.keys(Assets.MANIFEST).length);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        InputState.releaseAll();
+        if (game.state === 'play' && game.persistRun) game.persistRun();
+      }
+    });
+
+    console.log('[Alice] ready — assets:', Assets.total);
+
+    // debug/smoke-test hook: ?play=1[&diff=hard][&ch=2] jumps straight into a chapter
+    try {
+      var qs = new URLSearchParams(location.search);
+      if (qs.get('play') === '1') {
+        var d = qs.get('diff');
+        var ch = parseInt(qs.get('ch') || '0', 10);
+        game.startNewGame(d || game.pendingDifficulty);
+        if (ch > 0) game.startChapter(ch);
+        console.log('[Alice] autostart level', game.levelIndex, game.level.id);
+      }
+    } catch (e) { }
   }).catch(function (err) {
     console.error('[Alice] boot failed', err);
     if (fill) {
