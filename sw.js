@@ -7,7 +7,7 @@
    ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'sanu-bdu-v4';
+var CACHE_VERSION = 'sanu-bdu-v5';
 
 var CORE = [
   './',
