@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#08060a" />
+<title>Sən hələ də məni axtarırsan? — Alice</title>
+<meta name="description" content="Yağışlı bir gecədə Leo, Alice-i axtarmağa çıxır. Atmosferik 2D psixoloji qorxu platforması." />
+<link rel="icon" href="assets/mon_eye.png" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game" width="1024" height="576" aria-label="Oyun sahəsi"></canvas>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <div id="hearts" class="hearts"></div>
+      <div class="hud-chip" title="Güllə">
+        <img src="assets/i_bullets.png" alt="" class="chip-icon" />
+        <span id="ammo-count">0</span>
+      </div>
+      <div class="hud-chip" title="Açar">
+        <img src="assets/i_key.png" alt="" class="chip-icon" />
+        <span id="key-count">0</span>
+      </div>
+      <div class="hud-chip" title="Sikkə">
+        <img src="assets/i_coin.png" alt="" class="chip-icon" />
+        <span id="coin-count">0</span>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div id="level-name">—</div>
+      <div id="objective">—</div>
+    </div>
+  </div>
+
+  <!-- ================= DIALOG ================= -->
+  <div id="dialog" class="hidden" role="dialog" aria-live="polite">
+    <div class="dialog-frame">
+      <img id="dialog-portrait" class="dialog-portrait" src="assets/alice_0.png" alt="" />
+      <div class="dialog-body">
+        <div id="dialog-name" class="dialog-name">Alice</div>
+        <p id="dialog-text" class="dialog-text"></p>
+        <div class="dialog-hint"><span id="dialog-hint-text">davam etmək üçün E / Space</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TOASTS ================= -->
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- ================= PAUSE ================= -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2 class="panel-title">Fasilə</h2>
+      <p class="panel-sub">Qaranlıq səni gözləyir.</p>
+      <div class="menu">
+        <button class="btn btn-primary" data-act="resume">Davam et</button>
+        <button class="btn" data-act="restart">Bölməni yenidən başlat</button>
+        <button class="btn" data-act="settings">Tənzimləmələr</button>
+        <button class="btn" data-act="menu">Əsas menyu</button>
+      </div>
+      <div class="keys">
+        <span class="kbd">A</span><span class="kbd">D</span> hərəkət
+        <span class="kbd">Space</span> tullanma
+        <span class="kbd">Shift</span> qaçış
+        <span class="kbd">S</span> əyilmək
+        <span class="kbd">E</span> qarşılıqlı əlaqə
+        <span class="kbd">J</span>/<span class="kbd">Sol klik</span> atəş
+        <span class="kbd">Esc</span> fasilə
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS ================= -->
+  <div id="settings" class="overlay hidden">
+    <div class="panel">
+      <h2 class="panel-title">Tənzimləmələr</h2>
+      <div class="setting-row">
+        <label for="vol-master">Ümumi səs</label>
+        <input id="vol-master" type="range" min="0" max="100" value="70" />
+        <span id="vol-master-val">70%</span>
+      </div>
+      <div class="setting-row">
+        <label for="vol-music">Musiqi / atmosfer</label>
+        <input id="vol-music" type="range" min="0" max="100" value="55" />
+        <span id="vol-music-val">55%</span>
+      </div>
+      <div class="setting-row">
+        <label for="opt-shake">Ekran silkələnməsi</label>
+        <input id="opt-shake" type="checkbox" checked />
+      </div>
+      <div class="setting-row">
+        <label for="opt-crt">VHS effekti</label>
+        <input id="opt-crt" type="checkbox" checked />
+      </div>
+      <div class="menu">
+        <button class="btn btn-primary" data-act="settings-back">Geri</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TITLE ================= -->
+  <div id="title" class="overlay title-screen">
+    <div class="title-vignette"></div>
+    <div class="title-inner">
+      <p class="title-kicker">bir psixoloji qorxu hekayəsi</p>
+      <h1 class="game-title">SƏN HƏLƏ DƏ<br /><span>MƏNİ AXTARIRSAN?</span></h1>
+      <p class="title-tag">“Bəzən insan sevdiyi şeyləri itirməkdən qorxur.”</p>
+      <div class="menu title-menu">
+        <button class="btn btn-primary" id="btn-new">Yeni oyun</button>
+        <button class="btn hidden" id="btn-continue">Davam et</button>
+        <button class="btn" id="btn-how">Necə oynanır</button>
+        <button class="btn" id="btn-settings-title">Tənzimləmələr</button>
+      </div>
+      <p class="title-foot">Qulaqlıq tövsiyə olunur · Qrafika: təqdim olunan asset dəsti</p>
+    </div>
+  </div>
+
+  <!-- ================= HOW TO PLAY ================= -->
+  <div id="howto" class="overlay hidden">
+    <div class="panel wide">
+      <h2 class="panel-title">Necə oynanır</h2>
+      <div class="howto-grid">
+        <div class="howto-row"><span class="kbd big">A</span><span class="kbd big">D</span><div>Sol / sağ hərəkət. <b>Shift</b> basılı saxla — qaç.</div></div>
+        <div class="howto-row"><span class="kbd big">Space</span><div>Tullanmaq. Divardan tutunmaq üçün tullanarkən divara doğru bas.</div></div>
+        <div class="howto-row"><span class="kbd big">S</span><div>Əyilmək — alçaq keçidlərdən keçmək üçün.</div></div>
+        <div class="howto-row"><span class="kbd big">E</span><div>Qarşılıqlı əlaqə: qapı, məktub, foto, Alice.</div></div>
+        <div class="howto-row"><span class="kbd big">J</span><div>Atəş (solda siçan düyməsi də işləyir). Güllə saxla!</div></div>
+        <div class="howto-row"><span class="kbd big">Esc</span><div>Fasilə / menyu.</div></div>
+      </div>
+      <ul class="howto-tips">
+        <li><img src="assets/i_heart_full.png" alt="" /> Ürəklər həyatındır. <b>3</b> ürək — qaranlıqda diqqətli ol.</li>
+        <li><img src="assets/i_medkit.png" alt="" /> Tibb qutusu bir ürək bərpa edir.</li>
+        <li><img src="assets/i_key.png" alt="" /> Açar olmadan qıfıllı qapını aça bilməzsən.</li>
+        <li><img src="assets/i_letter.png" alt="" /> Məktub, foto və qeydlər hekayəni açır — hamısını tap.</li>
+        <li><img src="assets/mon_skull.png" alt="" /> Kəllələr səni görəndə qaçır. Güllə ilə dayandır.</li>
+      </ul>
+      <div class="menu"><button class="btn btn-primary" data-act="howto-back">Anladım</button></div>
+    </div>
+  </div>
+
+  <!-- ================= DEATH ================= -->
+  <div id="death" class="overlay hidden">
+    <div class="panel death-panel">
+      <h2 class="panel-title red">Sən itdin.</h2>
+      <p class="panel-sub" id="death-quote">Qaranlıq səni uddu...</p>
+      <div class="menu">
+        <button class="btn btn-primary" data-act="retry">Yenidən cəhd et</button>
+        <button class="btn" data-act="to-checkpoint">Yoxlama nöqtəsindən</button>
+        <button class="btn" data-act="menu">Əsas menyu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= LEVEL INTRO ================= -->
+  <div id="levelcard" class="hidden">
+    <div class="levelcard-inner">
+      <p class="lc-kicker" id="lc-kicker">Bölmə I</p>
+      <h2 class="lc-title" id="lc-title">Yağışlı küçə</h2>
+      <p class="lc-sub" id="lc-sub">—</p>
+    </div>
+  </div>
+
+  <!-- ================= ENDING ================= -->
+  <div id="ending" class="overlay hidden">
+    <div class="panel wide ending-panel">
+      <h2 class="panel-title red" id="ending-title">Son</h2>
+      <div class="ending-scroll" id="ending-body"></div>
+      <div class="menu">
+        <button class="btn btn-primary" data-act="ending-menu">Əsas menyu</button>
+        <button class="btn" data-act="ending-credits">Kreditlər</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CREDITS ================= -->
+  <div id="credits" class="overlay hidden">
+    <div class="panel">
+      <h2 class="panel-title">Kreditlər</h2>
+      <p class="panel-sub">
+        Hekayə, dizayn və proqram təminatı — sənin üçün.<br />
+        Bütün sprite və fon assetləri təqdim etdiyin asset vərəqindən çıxarıldı.<br />
+        Səslər brauzerdə real vaxtda (Web Audio) sintez olunur — heç bir xarici fayl yoxdur.
+      </p>
+      <div class="menu"><button class="btn btn-primary" data-act="credits-back">Geri</button></div>
+    </div>
+  </div>
+
+  <!-- ================= TOUCH CONTROLS ================= -->
+  <div id="touch" class="hidden">
+    <div class="touch-left">
+      <button class="tbtn" data-key="left" aria-label="Sol">◀</button>
+      <button class="tbtn" data-key="right" aria-label="Sağ">▶</button>
+    </div>
+    <div class="touch-right">
+      <button class="tbtn" data-key="fire" aria-label="Atəş">✦</button>
+      <button class="tbtn" data-key="jump" aria-label="Tullan">▲</button>
+      <button class="tbtn" data-key="interact" aria-label="Qarşılıqlı">E</button>
+    </div>
+  </div>
+
+  <!-- ================= LOADING ================= -->
+  <div id="loading" class="overlay">
+    <div class="load-wrap">
+      <img src="assets/u_portal.png" class="load-portal" alt="" />
+      <p class="load-text">Qaranlıq yüklənir...</p>
+      <div class="load-bar"><i id="load-fill"></i></div>
+    </div>
+  </div>
+
+  <div id="rotate-warn">Telefonu üfüqi tut — oyun geniş ekran üçündür.</div>
+</div>
+
+<script src="js/assets.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
