@@ -6,34 +6,86 @@ framework və build addımı yoxdur. **PWA** kimi telefona quraşdırıla bilər
 
 ## Hekayə
 
-> Axşam idi. Yağış yavaş-yavaş yağırdı. Nuran adlı gənc oğlan evə qayıdarkən bulvarda tək
-> dayanan bir qız gördü. Qızın adı Sanu idi. Amma Nuran onu ilk dəfə görürdü...
+> Axşam idi. Yağış yavaş-yayış yağırdı. Nuran evə qayıdarkən bulvarda tək dayanan bir qız
+> gördü. Qızın adı Sanu idi. Amma Nuran onu ilk dəfə görürdü...
 
-Sanu deyir: *"Sabah universitetə gəl."* Səhər BDU-nun həyətində qız yoxdur — yalnız qapının
-üstündə bir rəqəm: **314**.
+Sanu deyir: *"Sabah universitetə gəl."* Səhər BDU-nun həyətində qız yoxdur — yalnız
+qapının üstündə bir rəqəm: **314**.
 
-Nuran BDU-nun bulvarından, həyətindən, dəhlizlərindən və **314-cü auditoriyadan** keçərək
-axtarır. Arxiv zirzəmisində tapılan qovluq hər şeyi dəyişir:
+Arxiv zirzəmisində tapılan qovluq hər şeyi dəyişir: *"Tələbə Sanu M. — akademik
+məzuniyyət, dörd il əvvəl."* / *"Nuran Ə. — travmatik itki, yaddaşın qoruyucu silinməsi."*
 
-> *"Tələbə Sanu M. — akademik məzuniyyət. Tarix: dörd il əvvəl."*
-> *"Nuran Ə. — travmatik itki. Yaddaşın qoruyucu silinməsi aparılıb."*
+**v5 — 12 bölmə, 6 fərqli son, real seçimlər, hər bölmədə fərqli oyun qaydası.**
 
-Nuran niyə xatırlamır? Son iki bölmə bunun cavabıdır.
+## Bölmələr (12) və oyun rejimləri
 
-**İki fərqli son var** — Sanu-ya ağ çiçək verib-verməməyindən asılıdır.
-**12 qeydlik jurnal** bütün hekayə parçalarını sonradan oxumağa imkan verir.
+| # | Ad | Rejim | Xüsusiyyət |
+|---|-----|-------|-----------|
+| I | Yağışlı Bakı | calm | Tanışlıq, ilk qərar (kölgəyə yaxınlaş/keç), düşmən yox |
+| II | BDU həyəti | tense | İlk düşmənlər, açar, darvaza qərarı |
+| III | Universitet dəhlizi | tense | 2 açar, cızılmış şəkil, yanıb-sönən lampa |
+| IV | Auditoriya 314 | calm | Sanu ilə görüş, **üzr qərarı**, şəkil qərarı |
+| V | Arxiv zirzəmisi | dark | Qaranlıq + lampa, ov tüfəngi, **həqiqət qovluğu qərarı** |
+| VI | Kölgə Sanu | boss | Boss (3 fazalı enrage: 50% / 25% HP) |
+| VII | Güzgü dəhlizi | mirror | **Əksin səni 0.9s gecikmə ilə izləyir** (twin düşmən) |
+| VIII | Yataqxana otağı | stealth | **Səs metrı** — qaçsan/atəş açsan yuxudakılar oyanır |
+| IX | Qara pilləkən | chase | **Qaranlıq divarı arxanca gəlir**, dayansan tutur |
+| X | Stansiya · 03:14 | puzzle | **İki qolu** tap və işə sal, sonra qatar qapısı açılır |
+| XI | Pərdə tuneli | dark | Pərdə arxasında kölgələr, qərar (aç/keç) |
+| XII | Oyanış | boss | Final boss (göz) + **son qərar** (çiçək / get / qal) |
 
-## Bölmələr (7)
+## 6 son
 
-| # | Ad | Xüsusiyyət |
-|---|-----|-----------|
-| I | Yağışlı Bakı | Tanışlıq, ilk məktub, 03:14 telefonu — düşmən yoxdur (öyrədici) |
-| II | BDU həyəti | İlk düşmənlər, açar, 314-cü auditoriya elanı |
-| III | Universitet dəhlizi | 2 açar, cızılmış şəkil, qan divar yazısı |
-| IV | Auditoriya 314 | Sanu ilə görüş, çiçək vermə fürsəti |
-| V | Arxiv zirzəmisi | Qaranlıq, 2 açar, ov tüfəngi, **həqiqət qovluğu** |
-| VI | Kölgə Sanu | Boss döyüşü (sanu_corrupt) |
-| VII | Oyanış | Final boss (göz), son dialoq, iki son |
+| Son | Şərt |
+|-----|------|
+| **Bağışlanma** | qovluğu oxu + üzr dilə + çiçək ver + ≥16 jurnal qeydi |
+| **Gecikmiş çiçək** | çiçək ver, amma həqiqəti tam bilmə |
+| **Sükut** | çiçək vermədən get |
+| **Həqiqət** | qovluğu oxu + şəkli cır + çiçək vermə |
+| **Kül** | qovluğu yandır |
+| **Qalmaq** (gizli) | qovluğu oxu + sonda "Yerində qal" seç |
+
+"Sonlar" menyusundan hansı sonları açdığını görə bilərsən (`localStorage`).
+
+## Mağaza və inventar (düzəldildi)
+
+**v5-də alınan hər şey oyunda qalır və istifadə olunur:**
+
+- `profile.inv` — tək həqiqət mənbəyi. Heç nə "drain" edilmir.
+- **1** tibb dəsti · **2** neft lampası · **3** qəhvə · **4** qalxan · **5** alov fişəngi
+- Alt hissədəki **hotbar** düymələri də işləyir (mobil üçün)
+- Pullar, çiçək və güllə ümumi hesabda saxlanılır — bölmələr arasında keçərli
+- Mağazada hər əşyanın yanında "çantanda: N" göstərilir
+
+## İşləyən mexanikalar
+
+- **Hərəkət**: A/D, Shift qaçış, Space tullanma (coyote-time + jump buffer), S əyilmə
+- **Döyüş**: J / sol klik, tüfəng (2 güllə), güllə bitəndə yumruq (softlock yoxdur)
+- **14 düşmən növü** (yeni: `twin` güzgü əksi, `sleeper` yuxulu)
+- **Choice overlay** — klaviatura (↑↓ + Enter) və klik ilə, seçim profile yazılır
+- **12 qeydlik → 26 qeydlik jurnal**, 6 son qalereyası
+- **Çətinlik**: Asan / Orta / Çətin, tam keçiləndir, 3 ölümdən sonra azaltma təklifi
+
+## Performans (optimallaşdırma)
+
+- `ctx.shadowBlur` render yolundan **tamamilə çıxarıldı** (hər sprite üçün off-screen blur pass idi) → cached glow sprite-lər
+- **HUD diffing**: ürəklər/güllə/sikkə/slot yalnız dəyər dəyişəndə DOM-a yazılır
+- `localStorage` yazıları **debounce** edildi (420 ms) + `pagehide`-də flush
+- Fixed-step fizika accumulator, camera culling, particle cap 220
+- Zəif cihaz üçün avtomatik `lowFx` düşməsi
+
+## Test
+
+```bash
+node tools/validate-levels.js   # 12 bölmə həndəsə + mətn validasiyası → PASSED, 0 error
+node tools/simulate.js          # headless oyun simulyasiyası (real kod, stub DOM)
+```
+
+## Deployment
+
+- **Platform**: statik (GitHub Pages / Cloudflare Pages / istənilən statik host)
+- **Tech**: HTML + CSS + vanilla JS + Canvas2D + Web Audio (heç bir xarici asılılıq)
+- **Status**: ✅ işləyir
 
 ## Çətinlik rejimləri (yenidən balanslandı)
 
