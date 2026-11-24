@@ -1,13 +1,14 @@
 /* ============================================================
    sw.js — offline cache for the whole game
-   Strategy:
-     · navigation  -> network first, fallback to cached index.html
+   Strategy
+     · navigation   -> network first, fallback to the cached shell
      · assets/js/css -> stale-while-revalidate
-   Bump CACHE_VERSION whenever assets change.
+   Bump CACHE_VERSION whenever shipped files change.
    ============================================================ */
 'use strict';
 
-var CACHE_VERSION = 'alice-bdu-v3';
+var CACHE_VERSION = 'sanu-bdu-v4';
+
 var CORE = [
   './',
   './index.html',
@@ -28,9 +29,12 @@ var CORE = [
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE_VERSION).then(function (c) {
-      return c.addAll(CORE).catch(function (err) {
-        console.warn('[sw] core cache partial', err && err.message);
-      });
+      // add one by one so a single 404 can't abort the whole install
+      return Promise.all(CORE.map(function (url) {
+        return c.add(url).catch(function (err) {
+          console.warn('[sw] skip', url, err && err.message);
+        });
+      }));
     }).then(function () { return self.skipWaiting(); })
   );
 });
@@ -39,8 +43,7 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        if (k !== CACHE_VERSION) return caches.delete(k);
-        return null;
+        return k === CACHE_VERSION ? null : caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
   );
@@ -50,15 +53,18 @@ self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET') return;
 
-  var url = new URL(req.url);
+  var url;
+  try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== location.origin) return;
 
-  // navigations: network first so updates land, offline falls back to shell
+  // navigations: network first so updates land, offline falls back to the shell
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE_VERSION).then(function (c) { c.put('./index.html', copy); });
+        if (res && res.status === 200) {
+          var copy = res.clone();
+          caches.open(CACHE_VERSION).then(function (c) { c.put('./index.html', copy); });
+        }
         return res;
       }).catch(function () {
         return caches.match('./index.html').then(function (r) {
