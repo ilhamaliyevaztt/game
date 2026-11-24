@@ -31,8 +31,8 @@ vm.runInContext(src, sandbox, { filename: 'js/levels.js' });
 const LEVELS = sandbox.window.GameLevels;
 const CFG = sandbox.window.GameCfg;
 
-if (!Array.isArray(LEVELS) || LEVELS.length !== 7) {
-  console.error('FAIL: expected 7 levels, got', LEVELS && LEVELS.length);
+if (!Array.isArray(LEVELS) || LEVELS.length !== 12) {
+  console.error('FAIL: expected 12 levels, got', LEVELS && LEVELS.length);
   process.exit(1);
 }
 
@@ -266,6 +266,10 @@ for (const L of LEVELS) {
     const need = L.exit.needsKey ? 1 : (L.exit.needsKeys || 0);
     const keys = L.items.filter(i => i.type === 'key').length;
     if (need > keys) fail(L, `exit needs ${need} keys but only ${keys} exist in the chapter`);
+    if (L.exit.needsLevers) {
+      const levers = L.items.filter(i => i.type === 'lever').length;
+      if (levers < L.exit.needsLevers) fail(L, `exit needs ${L.exit.needsLevers} levers but only ${levers} exist`);
+    }
     // nothing should stand on top of the exit portal
     for (const pr of L.props) {
       if (Math.abs(pr.x - L.exit.x) < 46) warn(L, `prop ${pr.a} is right on the exit portal`);
@@ -303,11 +307,10 @@ if (aliceLeft) fail({ id: 'story' }, `${aliceLeft} dialog lines still use the ol
 if (leoLeft) fail({ id: 'story' }, `${leoLeft} dialog texts still mention Alice/Leo`);
 
 // endings
+// v5: six endings live in Store.ENDINGS (checked by tools/simulate.js)
 const E1 = sandbox.window.GameEnding, E2 = sandbox.window.GameEndingPlain;
-if (!E1 || !E1.body || E1.body.length < 6) fail({ id: 'ending' }, 'kind ending is missing or too short');
-if (!E2 || !E2.body || E2.body.length < 6) fail({ id: 'ending' }, 'plain ending is missing or too short');
 for (const E of [E1, E2]) {
-  if (E && /Alice|Leo/.test(E.body.join(' '))) fail({ id: 'ending' }, `ending "${E.title}" still mentions the old names`);
+  if (E && E.body && /Alice|Leo/.test(E.body.join(' '))) fail({ id: 'ending' }, `ending "${E.title}" still mentions the old names`);
 }
 
 console.log('\n' + '='.repeat(58));

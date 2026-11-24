@@ -67,6 +67,10 @@
     // --- props ---
     prop_barrel:  'assets/prop_barrel.png',
     prop_barrel2: 'assets/prop_barrel2.png',
+    prop_bed:     'assets/prop_bed.png',
+    prop_ladder:  'assets/prop_ladder.png',
+    prop_window1: 'assets/prop_window1.png',
+    prop_window2: 'assets/prop_window2.png',
     prop_bench:   'assets/prop_bench.png',
     prop_bookshelf:'assets/prop_bookshelf.png',
     prop_chair:   'assets/prop_chair.png',

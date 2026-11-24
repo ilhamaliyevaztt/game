@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#08060a" />
 <title>Sən hələ də məni axtarırsan? — Sanu · BDU</title>
-<meta name="description" content="Yağışlı Bakıda, BDU-nun dəhlizlərində Nuran Sanu-nu axtarır. Atmosferik 2D psixoloji qorxu platforması — 7 bölmə, 3 çətinlik, mobil üçün." />
+<meta name="description" content="Yağışlı Bakıda, BDU-nun dəhlizlərində Nuran Sanu-nu axtarır. Atmosferik 2D psixoloji qorxu platforması — 12 bölmə, 6 son, seçimlər, mobil üçün." />
 <link rel="icon" href="assets/icon-192.png" />
 <link rel="apple-touch-icon" href="assets/icon-192.png" />
 <link rel="manifest" href="manifest.webmanifest" />
@@ -44,7 +44,38 @@
     <div class="hud-right">
       <div id="level-name">—</div>
       <div id="objective">—</div>
+      <div id="mode-badge" class="mode-badge hidden">—</div>
+      <div id="noise-meter" class="noise-meter hidden" title="Səs səviyyəsi"><i></i></div>
     </div>
+  </div>
+
+  <!-- ================= INVENTORY HOTBAR ================= -->
+  <div id="hotbar" class="hotbar hidden" aria-label="Çanta">
+    <button type="button" class="slot" id="slot-1" data-item="medkit" title="1 · Tibb dəsti">
+      <span class="slot-key">1</span>
+      <img src="assets/i_medkit.png" alt="" />
+      <span class="slot-n">0</span>
+    </button>
+    <button type="button" class="slot" id="slot-2" data-item="lantern" title="2 · Neft lampası">
+      <span class="slot-key">2</span>
+      <img src="assets/i_potion.png" alt="" />
+      <span class="slot-n">0</span>
+    </button>
+    <button type="button" class="slot" id="slot-3" data-item="coffee" title="3 · Səhər qəhvəsi">
+      <span class="slot-key">3</span>
+      <img src="assets/i_grenade.png" alt="" />
+      <span class="slot-n">0</span>
+    </button>
+    <button type="button" class="slot" id="slot-4" data-item="shield" title="4 · Kölgə qalxanı">
+      <span class="slot-key">4</span>
+      <img src="assets/i_scroll.png" alt="" />
+      <span class="slot-n">0</span>
+    </button>
+    <button type="button" class="slot" id="slot-5" data-item="flare" title="5 · Alov fişəngi">
+      <span class="slot-key">5</span>
+      <img src="assets/i_gem.png" alt="" />
+      <span class="slot-n">0</span>
+    </button>
   </div>
 
   <!-- ================= DIALOG ================= -->
@@ -154,11 +185,12 @@
         <button type="button" class="btn hidden" id="btn-continue">Davam et</button>
         <button type="button" class="btn hidden" id="btn-chapters">Bölmələr</button>
         <button type="button" class="btn" id="btn-shop-title">Mağaza</button>
+        <button type="button" class="btn" id="btn-gallery">Sonlar</button>
         <button type="button" class="btn" id="btn-how">Necə oynanır</button>
         <button type="button" class="btn" id="btn-settings-title">Tənzimləmələr</button>
         <button type="button" class="btn btn-ghost" id="btn-install">Tətbiqi quraşdır</button>
       </div>
-      <p class="title-foot">7 bölmə · 3 çətinlik · toxunma idarəsi · oflayn oynanır</p>
+      <p class="title-foot">12 bölmə · 6 son · 3 çətinlik · seçimlər · oflayn oynanır</p>
     </div>
   </div>
 
@@ -279,6 +311,16 @@
     </div>
   </div>
 
+  <!-- ================= CHOICE ================= -->
+  <div id="choice" class="overlay hidden">
+    <div class="panel choice-panel">
+      <p class="pro-kicker" id="choice-title">Qərar</p>
+      <p class="choice-prompt" id="choice-prompt">—</p>
+      <div class="choice-list" id="choice-list"></div>
+      <p class="panel-note">Bu seçim oyunun gedişini və sonunu dəyişir.</p>
+    </div>
+  </div>
+
   <!-- ================= FINAL CHOICE ================= -->
   <div id="finalchoice" class="overlay hidden">
     <div class="panel final-panel">
@@ -287,9 +329,10 @@
       <p class="panel-sub" id="final-note">Cibində ağ çiçək var. Ona verə bilərsən — ya da susaraq get.</p>
       <div class="menu">
         <button type="button" class="btn btn-primary" id="btn-final-give" data-act="final-give">Ağ çiçəyi ver</button>
+        <button type="button" class="btn hidden" id="btn-final-stay" data-act="final-stay">Yerində qal — onunla</button>
         <button type="button" class="btn" data-act="final-leave">Çiçək vermədən get</button>
       </div>
-      <p class="panel-note">Seçimin sonu dəyişir. Geri qaytarmaq olmur.</p>
+      <p class="panel-note">Seçimin sonu dəyişir. Altı fərqli son var. Geri qaytarmaq olmur.</p>
     </div>
   </div>
 
@@ -302,6 +345,16 @@
         <button type="button" class="btn btn-primary" data-act="ending-menu">Əsas menyu</button>
         <button type="button" class="btn" data-act="ending-credits">Kreditlər</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= GALLERY (endings) ================= -->
+  <div id="gallery" class="overlay hidden">
+    <div class="panel wide">
+      <h2 class="panel-title">Sonlar</h2>
+      <p class="panel-sub">Açdığın sonlar: <b id="gallery-count">0 / 6</b> · Fərqli seçimlər fərqli sonlar açır.</p>
+      <div id="gallery-list" class="gallery-list"></div>
+      <div class="menu"><button type="button" class="btn btn-primary" data-act="gallery-back">Geri</button></div>
     </div>
   </div>
 

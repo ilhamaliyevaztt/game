@@ -66,7 +66,7 @@ function makeEl(id) {
     id,
     tagName: 'DIV',
     className: '',
-    style: {},
+    style: { setProperty: function () { }, removeProperty: function () { } },
     dataset: {},
     textContent: '',
     innerHTML: '',
@@ -78,6 +78,22 @@ function makeEl(id) {
     childElementCount: 0,
     children: [],
     offsetWidth: 100,
+    querySelector: function (sel) {
+      if (sel === '.slot-n') {
+        if (!this._slotN) { this._slotN = makeEl('slot-n'); }
+        return this._slotN;
+      }
+      return null;
+    },
+    querySelectorAll: function () { return []; },
+    setProperty: function () { },
+    getAttribute: function () { return null; },
+    setAttribute: function () { },
+    appendChild: function (c) { this.children.push(c); this.childElementCount = this.children.length; return c; },
+    removeChild: function () { return null; },
+    addEventListener: function () { },
+    removeEventListener: function () { },
+    classList: { add: function () { }, remove: function () { }, toggle: function () { }, contains: function () { return false; } },
     firstChild: null,
     classList: {
       _s: new Set(),

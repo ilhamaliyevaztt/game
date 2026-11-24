@@ -5,11 +5,16 @@
    Performance contract:
    · glow FX are cached canvases (Assets.blitGlow) — no gradient
      allocation inside the render loop
-   · no ctx.filter anywhere (it forces a software pass per draw)
+   · NO ctx.shadowBlur in the hot path: it forces a blurred
+     off-screen pass per sprite (replaced by cached glows)
+   · no ctx.filter anywhere
    ------------------------------------------------------------
    Combat contract:
    · the player can always fight: 0 ammo = weak melee (no softlock)
    · hazard damage comes from the difficulty profile
+   Stealth contract:
+   · every loud action raises player.noise; sleepers wake up
+     when noise reaches them
    ============================================================ */
 (function (global) {
   'use strict';
@@ -114,8 +119,18 @@
     this.shield = 0;
     this.lanternT = 0;
     this.coffeeT = 0;
+    this.noise = 0;
+    this.flareT = 0;
+    this.mirrorDelay = [];
   }
   Player.prototype = Object.create(Body.prototype);
+
+  /** loud actions feed the stealth meter and wake sleepers nearby */
+  Player.prototype.makeNoise = function (amount, game) {
+    if (amount <= 0) return;
+    this.noise = Math.min(1, this.noise + amount * (this.diff.noiseMul || 1));
+    if (game && game.alertNearby) game.alertNearby(this.x, this.noise);
+  };
 
   Player.prototype.update = function (dt, game) {
     var inp = game.input;
@@ -136,6 +151,8 @@
     this.meleeAnim = Math.max(0, this.meleeAnim - dt);
     this.lanternT = Math.max(0, this.lanternT - dt);
     this.coffeeT = Math.max(0, this.coffeeT - dt);
+    this.flareT = Math.max(0, this.flareT - dt);
+    this.noise = Math.max(0, this.noise - dt * 0.34);
     if (this.hitFlash > 0) this.hitFlash -= dt;
 
     /* ---- crouch (never stand up into a ceiling) ---- */
@@ -198,6 +215,7 @@
       Audio2.play('land');
       game.spawnDust(this.x, this.y, 6);
       game.shake(2.2);
+      this.makeNoise(prevVy > 700 ? 0.30 : 0.15, game);
     }
 
     /* ---- footsteps ---- */
@@ -206,6 +224,8 @@
       if (this.stepTimer <= 0) {
         this.stepTimer = 0.34;
         Audio2.play(Math.abs(this.vx) > 200 ? 'step_wet' : 'step');
+        // running (not walking) is what wakes the room up
+        if (Math.abs(this.vx) > 210) this.makeNoise(0.14, game);
       }
     }
 
@@ -233,6 +253,7 @@
         Audio2.play('shoot');
         game.shake(this.hasShotgun ? 4.2 : 2.6);
         this.vx -= this.facing * (this.hasShotgun ? 55 : 30);
+        this.makeNoise(this.hasShotgun ? 0.55 : 0.40, game);
       } else {
         this.shootCd = 0.22;
         this._melee(game);
@@ -339,15 +360,15 @@
 
     ctx.save();
     if (flick) ctx.globalAlpha = 0.42;
-    if (this.hitFlash > 0) {
-      ctx.shadowColor = 'rgba(255,40,60,.95)';
-      ctx.shadowBlur = 20;
-    } else if (this.coffeeT > 0) {
-      ctx.shadowColor = 'rgba(255,210,120,.8)';
-      ctx.shadowBlur = 12;
-    }
     Assets.blitH(ctx, key, this.x, this.y + 2, h, this.facing < 0);
     ctx.restore();
+
+    // hurt / speed aura — cached glow sprites, never shadowBlur
+    if (this.hitFlash > 0) {
+      Assets.blitGlow(ctx, 'rgba(255,40,60,0.55)', this.x, this.y - 32, 46, 1);
+    } else if (this.coffeeT > 0) {
+      Assets.blitGlow(ctx, 'rgba(255,210,120,0.30)', this.x, this.y - 30, 36, 1);
+    }
 
     // shield bubble
     if (this.shield > 0) {
@@ -382,8 +403,11 @@
     lurk:         { spr: 'mon_lurk',    w: 70, h: 54, hp: 4,  dmg: 2, speed: 84,  chase: 340, gravity: true,  drawH: 58, score: 3 },
     shadow:       { spr: 'mon_shadow',  w: 34, h: 74, hp: 3,  dmg: 1, speed: 60,  chase: 440, gravity: false, drawH: 74, score: 3 },
     veil:         { spr: 'mon_veil',    w: 44, h: 80, hp: 5,  dmg: 2, speed: 74,  chase: 480, gravity: false, drawH: 82, score: 5 },
-    sanu_corrupt: { spr: 'sanu_corrupt',w: 46, h: 92, hp: 18, dmg: 2, speed: 80,  chase: 900, gravity: true,  drawH: 96, score: 14, boss: true },
-    eye2:         { spr: 'mon_eye2',    w: 74, h: 84, hp: 24, dmg: 2, speed: 70,  chase: 1000, gravity: false, drawH: 88, score: 20, boss: true, shooter: true }
+    sanu_corrupt: { spr: 'sanu_corrupt',w: 46, h: 92, hp: 22, dmg: 2, speed: 84,  chase: 900, gravity: true,  drawH: 96, score: 14, boss: true },
+    eye2:         { spr: 'mon_eye2',    w: 74, h: 84, hp: 30, dmg: 2, speed: 72,  chase: 1000, gravity: false, drawH: 88, score: 20, boss: true, shooter: true },
+    /* --- v5 additions --- */
+    twin:         { spr: 'nuran_back',  w: 30, h: 64, hp: 6,  dmg: 1, speed: 0,   chase: 1400, gravity: false, drawH: 68, score: 6, mirror: true },
+    sleeper:      { spr: 'mon_crouch',  w: 52, h: 52, hp: 3,  dmg: 1, speed: 96,  chase: 360, gravity: true,  drawH: 54, score: 2, dormant: true }
   };
 
   function Enemy(cfg, diff) {
@@ -392,9 +416,10 @@
     diff = diff || { hpMul: 1, spdMul: 1, aggroMul: 1, dmgMul: 1 };
     this.type = cfg.type;
     this.def = d;
+    this.baseSpeed = cfg.speed || d.speed;
     this.maxHp = Math.max(1, Math.round((cfg.hp || d.hp) * (diff.hpMul || 1)));
     this.hp = this.maxHp;
-    this.speed = (cfg.speed || d.speed) * (diff.spdMul || 1);
+    this.speed = this.baseSpeed * (diff.spdMul || 1);
     this.dmg = Math.max(1, Math.round(d.dmg * (diff.dmgMul || 1)));
     this.chaseRange = d.chase * (diff.aggroMul || 1);
     this.patrolMin = cfg.patrol ? cfg.patrol[0] : cfg.x - 90;
@@ -411,8 +436,32 @@
     this.final = !!cfg.final;
     this.spawnX = cfg.x;
     this.touchCd = 0;
+    this.phase = 1;
+    /* mirror twin: replays the player's own path one second late */
+    this.mirror = !!d.mirror;
+    this.hist = null;
+    this.histT = 0;
+    /* sleeper: stays down until the room gets loud */
+    this.dormant = !!cfg.dormant || !!d.dormant;
+    this.awake = !this.dormant;
+    this.sleepPulse = Math.random() * 6.28;
   }
   Enemy.prototype = Object.create(Body.prototype);
+
+  /** called by the player's loud actions — proximity + volume matter */
+  Enemy.prototype.wake = function (dist, noise) {
+    if (!this.dormant || this.awake) return false;
+    var reach = 120 + noise * 460;
+    if (dist <= reach) {
+      this.awake = true;
+      this.dormant = false;
+      this.aggro = true;
+      this.hitFlash = 0.25;
+      Audio2.play('growl');
+      return true;
+    }
+    return false;
+  };
 
   Enemy.prototype.update = function (dt, game) {
     var p = game.player;
@@ -433,6 +482,41 @@
       return;
     }
 
+    /* ---- mirror twin: replays the player's own trail, 0.9s late ---- */
+    if (this.mirror) {
+      this.histT += dt;
+      if (this.histT > 0.05) {
+        this.histT = 0;
+        var trail = game.playerTrail;
+        if (trail && trail.length) {
+          var back = Math.min(trail.length - 1, Math.round(0.9 / 0.05));
+          var pt = trail[trail.length - 1 - back];
+          if (pt && isFinite(pt.x) && isFinite(pt.y)) {
+            this.facing = pt.facing || this.facing;
+            this.y = pt.y;
+            this.x = pt.x - 34 * this.facing;
+            this.anim = pt.anim || this.anim;
+          }
+        }
+      }
+      this.bob += dt;
+      if (p.alive && this.attackCd <= 0 && overlap(this.box(), p.box())) {
+        p.hurt(this.dmg, game, p.x > this.x ? 1 : -1);
+        this.attackCd = 1.1;
+      }
+      return;
+    }
+
+    /* ---- sleeper: lies still until the room is loud enough ---- */
+    if (this.dormant && !this.awake) {
+      this.sleepPulse += dt * 1.4;
+      if (this.def.gravity) {
+        this.vy = Math.min(this.vy + GRAV * dt, MAX_FALL);
+        moveAndCollide(this, solids, dt);
+      }
+      return;
+    }
+
     var dx = p.x - this.x;
     var dy = (p.y - p.h / 2) - (this.y - this.h / 2);
     var dist = Math.sqrt(dx * dx + dy * dy);
@@ -443,6 +527,24 @@
       if (!this.isBoss) Audio2.play('growl');
     }
     if (!sees && this.aggro && dist > this.chaseRange * 1.7) this.aggro = false;
+
+    /* ---- boss phases: enrage under 50% / 25% hp ---- */
+    if (this.isBoss) {
+      var ratio = this.hp / this.maxHp;
+      var wantPhase = ratio <= 0.25 ? 3 : ratio <= 0.5 ? 2 : 1;
+      if (wantPhase !== this.phase) {
+        this.phase = wantPhase;
+        game.spawnBurst(this.x, this.y - this.h * 0.6, '#ff3355', 26);
+        game.shake(7);
+        game.flash(0.32);
+        Audio2.play('dread');
+        if (game.toast) {
+          game.toast(wantPhase === 3 ? 'Kölgə son gücünü yığır' : 'Kölgə qəzəbləndi', 'bad');
+        }
+        this.speed = this.baseSpeed * (1 + (wantPhase - 1) * 0.22);
+        this.shootT = Math.min(this.shootT, 1.0);
+      }
+    }
 
     if (this.def.gravity) {
       if (this.aggro) {
@@ -570,11 +672,12 @@
     var d = this.def;
     var bobY = d.gravity ? 0 : Math.sin(this.bob) * 6;
 
+    /* sleeping enemies are drawn dimmer and further back */
+    var dormantAlpha = 1;
+    if (this.dormant && !this.awake) dormantAlpha = 0.34 + Math.sin(this.sleepPulse) * 0.07;
+
     ctx.save();
-    if (this.hitFlash > 0) {
-      ctx.shadowColor = '#ff3355';
-      ctx.shadowBlur = 18;
-    }
+    ctx.globalAlpha = dormantAlpha;
     Assets.blitH(ctx, d.spr, this.x, this.y + 2 + bobY, d.drawH, this.facing < 0);
     ctx.restore();
 
@@ -582,7 +685,15 @@
     var ex = this.x + this.facing * (d.gravity ? 5 : 0);
     var ey = this.y - this.h * (this.isBoss ? 0.78 : 0.72) + bobY;
     var rad = this.isBoss ? 30 : 13;
-    Assets.blitGlow(ctx, 'rgba(255,60,70,0.55)', ex, ey, rad, 1);
+    var glowCol = this.mirror ? 'rgba(120,190,255,0.42)'
+      : (this.dormant && !this.awake) ? 'rgba(120,80,90,0.22)'
+      : 'rgba(255,60,70,0.55)';
+    Assets.blitGlow(ctx, glowCol, ex, ey, rad, 1);
+
+    /* mirror twin: a thin blue echo outline */
+    if (this.mirror) {
+      Assets.blitGlow(ctx, 'rgba(90,150,255,0.16)', this.x, this.y - this.h * 0.5, 62, 1);
+    }
 
     // hp bar
     if (this.hp < this.maxHp || this.isBoss) {
@@ -593,6 +704,12 @@
       ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
       ctx.fillStyle = this.isBoss ? '#e04158' : '#a81b2e';
       ctx.fillRect(bx, by, bw * Math.max(0, this.hp / this.maxHp), 5);
+      /* boss phase ticks so the player can read the enrage */
+      if (this.isBoss) {
+        ctx.fillStyle = 'rgba(255,255,255,.45)';
+        ctx.fillRect(bx + bw * 0.5, by - 3, 1, 11);
+        ctx.fillRect(bx + bw * 0.25, by - 3, 1, 11);
+      }
     }
   };
 
@@ -610,6 +727,10 @@
     this.lines = cfg.lines || null;
     this.jid = cfg.jid || null;
     this.id = cfg.id || null;
+    this.cid = cfg.cid || null;
+    this.prompt = cfg.prompt || null;
+    this.options = cfg.options || null;
+    this.used = false;
   }
   Item.prototype.box = function () {
     return { x: this.x - 18, y: this.y - 36, w: 36, h: 40 };
@@ -630,22 +751,45 @@
       case 'note': return this.icon || 'i_scroll';
       case 'phone': return this.icon || 'u_phone';
       case 'flower': return 'i_gem';
+      case 'choice': return this.icon || 'u_question';
+      case 'lever': return 'u_lock';
+      case 'memory': return this.icon || 'i_letter';
       default: return 'i_coin';
     }
   };
 
-  Item.prototype.draw = function (ctx) {
+  Item.prototype.big = function () {
+    return this.type === 'photo' || this.type === 'note' ||
+      this.type === 'phone' || this.type === 'choice' || this.type === 'lever';
+  };
+
+  Item.prototype.draw = function (ctx, game) {
     var sp = this.sprite();
     var y = this.y - 20 + Math.sin(this.bob) * 4;
-    var big = (this.type === 'photo' || this.type === 'note' || this.type === 'phone');
+    var big = this.big();
     var s = this.type === 'coin' ? 0.85 : (big ? 0.62 : 0.95);
     var col = this.type === 'coin' ? 'rgba(201,162,39,0.32)'
       : this.type === 'medkit' ? 'rgba(220,70,70,0.30)'
       : this.type === 'key' ? 'rgba(230,200,90,0.36)'
       : this.type === 'ammo' ? 'rgba(230,170,90,0.28)'
+      : this.type === 'choice' ? 'rgba(120,190,255,0.34)'
+      : this.type === 'lever' ? 'rgba(255,190,90,0.40)'
       : 'rgba(200,120,150,0.26)';
-    Assets.blitGlow(ctx, col, this.x, y, 26, 1);
+    var pulse = (this.type === 'choice' || this.type === 'lever')
+      ? 0.75 + Math.sin(this.bob * 1.6) * 0.25 : 1;
+    Assets.blitGlow(ctx, col, this.x, y, this.type === 'choice' ? 40 : 26, pulse);
     Assets.blit(ctx, sp, this.x, y + 12, s, false);
+    /* a decision point gets a slow ring so the eye finds it */
+    if (this.type === 'choice' && game && !game.settings.lowFx) {
+      ctx.save();
+      ctx.globalAlpha = 0.30 + Math.sin(this.bob * 1.4) * 0.12;
+      ctx.strokeStyle = 'rgba(150,205,255,0.9)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(this.x, y + 4, 22 + Math.sin(this.bob * 1.4) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   };
 
   /* ------------------------------------------------------------
@@ -662,6 +806,7 @@
     this.final = !!cfg.final;
     this.gift = !!cfg.gift;
     this.needsBoss = !!cfg.needsBoss;
+    this.choiceAfter = cfg.choiceAfter || null;
     this.gifted = false;
     this.talked = false;
     this.anim = Math.random() * 3;
@@ -681,20 +826,19 @@
   /** true while this npc may be interacted with */
   Npc.prototype.available = function (game) {
     if (this.needsBoss && !game.bossDown) return false;
+    if (this.choiceAfter && game && game.hasAnswered && game.hasAnswered(this.choiceAfter.cid)) {
+      return this.gift ? true : !this.talked;
+    }
     return true;
   };
   Npc.prototype.draw = function (ctx, game) {
     var ghost = this.final;
     ctx.save();
-    if (ghost) {
-      ctx.globalAlpha = this.fade;
-      ctx.shadowColor = 'rgba(255,20,50,.85)';
-      ctx.shadowBlur = 30;
-    }
+    if (ghost) ctx.globalAlpha = this.fade;
     Assets.blitH(ctx, this.sprite, this.x, this.y + 2, 72 * this.scale, false);
     ctx.restore();
     if (ghost) {
-      Assets.blitGlow(ctx, 'rgba(220,20,50,0.22)', this.x, this.y - 50, 110, 1);
+      Assets.blitGlow(ctx, 'rgba(220,20,50,0.24)', this.x, this.y - 50, 110, 1);
     } else {
       Assets.blitGlow(ctx, 'rgba(255,210,220,0.10)', this.x, this.y - 40, 90, 1);
     }

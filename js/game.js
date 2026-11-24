@@ -24,8 +24,8 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
   var OVERLAYS = ['title', 'howto', 'settings', 'pause', 'death', 'ending',
-    'credits', 'difficulty', 'chapters', 'shop', 'journal', 'prologue', 'finalchoice'];
-  var WORLD_STATES = { play: 1, dialog: 1, pause: 1, dead: 1, ending: 1, transition: 1, finalchoice: 1 };
+    'credits', 'difficulty', 'chapters', 'shop', 'journal', 'prologue', 'finalchoice', 'choice', 'gallery'];
+  var WORLD_STATES = { play: 1, dialog: 1, pause: 1, dead: 1, ending: 1, transition: 1, finalchoice: 1, choice: 1 };
 
   function Game(canvas) {
     this.canvas = canvas;
@@ -89,6 +89,19 @@
     this._lockedMsg = -9;
     this._chrome = {};
     this._touches = false;
+
+    /* ---- v5: choice / stealth / chase / inventory state ---- */
+    this.playerTrail = [];
+    this.trailT = 0;
+    this.levers = 0;
+    this.leversTotal = 0;
+    this.choiceItem = null;
+    this.noise = 0;
+    this.chaseX = -9999;
+    this.chaseSpeed = 96;
+    this.mode = 'calm';
+    this._hudCache = {};
+    this.noiseSafe = 0;
 
     this._initRain();
     this._bindUi();
@@ -170,6 +183,7 @@
     on('btn-how', 'click', function () { self.from = 'title'; self.state = 'title'; self.show('howto'); });
     on('btn-settings-title', 'click', function () { self.from = 'title'; self.show('settings'); });
     on('btn-install', 'click', function () { self.installPrompt(); });
+    on('btn-gallery', 'click', function () { self._galleryFrom = 'title'; self.openGallery(); });
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-act]'), function (b) {
       b.addEventListener('click', function () {
@@ -215,6 +229,66 @@
       if (stage) stage.classList.toggle('low-fx', self.settings.lowFx);
       self.saveSettings();
     });
+
+    /* ---- hotbar buttons mirror the 1..5 hotkeys ---- */
+    Array.prototype.forEach.call(document.querySelectorAll('.slot[data-item]'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (self.state !== 'play' && self.state !== 'dialog') return;
+        self.useItem(btn.getAttribute('data-item'));
+      });
+    });
+
+    /* ---- inventory hotkeys 1..5 work everywhere in a run ---- */
+    window.addEventListener('keydown', function (e) {
+      if (self.state !== 'play' && self.state !== 'dialog') return;
+      var map = { Digit1: 'medkit', Digit2: 'lantern', Digit3: 'coffee', Digit4: 'shield', Digit5: 'flare' };
+      var key = map[e.code];
+      if (!key) return;
+      e.preventDefault();
+      self.useItem(key);
+    });
+  };
+
+  /* ============================================================
+     INVENTORY — purchases are real, persistent items
+     ============================================================ */
+  Game.prototype.useItem = function (key) {
+    var p = this.player;
+    if (!p) return;
+    var name = { medkit: 'Tibb dəsti', lantern: 'Neft lampası', coffee: 'Səhvər qəhvəsi', shield: 'Kölgə qalxanı', flare: 'Alov fişəngi' }[key] || key;
+
+    if (key === 'medkit' && p.hp >= p.maxHp) { this.toast('Ürəklərin tamdır', 'bad'); return; }
+    if (key === 'shield' && p.shield >= 2) { this.toast('Qalxan artıq doludur', 'bad'); return; }
+    if (key === 'lantern' && p.lanternT > 20) { this.toast('Lampa hələ də yanır', 'bad'); return; }
+    if (key === 'coffee' && p.coffeeT > 12) { this.toast('Qəhvə hələ təsir edir', 'bad'); return; }
+
+    if (!Store.useItem(key)) { this.toast(name + ' bitdi — mağazadan al', 'bad'); return; }
+
+    switch (key) {
+      case 'medkit': p.heal(1); Audio2.play('heal'); this.toast('+1 ürək', 'good'); break;
+      case 'lantern': p.lanternT = 75; Audio2.play('pickup'); this.toast('Lampa yandı · 75s', 'good'); break;
+      case 'coffee': p.coffeeT = 40; Audio2.play('pickup'); this.toast('Qəhvə · sürət', 'good'); break;
+      case 'shield': p.shield = Math.min(2, p.shield + 1); Audio2.play('heal'); this.toast('Qalxan hazırdır', 'good'); break;
+      case 'flare':
+        p.flareT = 6;
+        Audio2.play('portal');
+        this.flash(0.3);
+        this.toast('Fişəng — koridorda hər şey dondu', 'good');
+        for (var i = 0; i < this.enemies.length; i++) {
+          var e = this.enemies[i];
+          if (e.dead || e.isBoss) continue;
+          if (Math.abs(e.x - p.x) < 520) { e.attackCd = 3.2; e.aggro = false; e.vx = 0; }
+        }
+        break;
+      default: break;
+    }
+    this.updateHud();
+  };
+
+  /** has the player already answered a given choice? */
+  Game.prototype.hasAnswered = function (cid) {
+    return Store.choice(cid) !== null;
   };
 
   Game.prototype.pickDifficulty = function (key) {
@@ -230,7 +304,7 @@
   /* ============================================================
      RUN STATE
      ============================================================ */
-  var RUN_VERSION = 4;
+  var RUN_VERSION = 5;
 
   Game.prototype.freshRun = function (level) {
     return {
@@ -244,7 +318,8 @@
       deaths: 0,
       taken: {},
       killed: {},
-      bosses: {}
+      bosses: {},
+      levers: {}
     };
   };
 
@@ -263,6 +338,7 @@
     this.run.score = this.score;
     this.run.deaths = this.deaths;
     Store.saveRun(this.run);
+    if (this.player) Store.inv().ammo = Math.max(0, this.player.ammo);
   };
 
   Game.prototype.loadRunState = function () {
@@ -271,6 +347,7 @@
     if (!r.taken || typeof r.taken !== 'object') r.taken = {};
     if (!r.killed || typeof r.killed !== 'object') r.killed = {};
     if (!r.bosses || typeof r.bosses !== 'object') r.bosses = {};
+    if (!r.levers || typeof r.levers !== 'object') r.levers = {};
     r.level = clamp(r.level | 0, 0, this.levels.length - 1);
     r.levelCoins = Math.max(0, Number(r.levelCoins) || 0);
     return r;
@@ -305,6 +382,14 @@
     if (hud && this._chrome.hud !== playing) {
       this._chrome.hud = playing;
       hud.classList.toggle('hidden', !playing);
+    }
+    var bar = document.getElementById('hotbar');
+    if (bar) {
+      var wantBar = playing || this.state === 'dialog';
+      if (this._chrome.bar !== wantBar) {
+        this._chrome.bar = wantBar;
+        bar.classList.toggle('hidden', !wantBar);
+      }
     }
     var touch = document.getElementById('touch');
     if (touch) {
@@ -381,46 +466,45 @@
     var self = this;
     box.innerHTML = '';
     Store.SHOP.forEach(function (item) {
-      var owned = item.kind === 'shotgun' && prof.hasShotgun;
+      var owned = item.perm && prof[item.perm];
       var poor = prof.wallet < item.price;
+      var have = item.inv ? (prof.inv[item.inv] || 0) : 0;
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'shop-item' + (owned ? ' owned' : (poor ? ' poor' : ''));
       b.innerHTML =
         '<img class="shop-ico" src="assets/' + item.icon + '.png" alt="" />' +
-        '<span class="shop-txt"><b>' + item.name + '</b><i>' + item.sub + '</i></span>' +
+        '<span class="shop-txt"><b>' + item.name + '</b><i>' + item.sub + '</i>' +
+        (have ? '<em class="shop-have">çantanda: ' + have + '</em>' : '') + '</span>' +
         '<span class="shop-price">' + (owned ? 'ALINIB' : item.price) + '</span>';
       if (!owned) {
         b.addEventListener('click', function () {
           var res = Store.buy(item.id);
           if (res.ok) {
             Audio2.play('pickup');
-            self.toast(item.name + ' alındı', 'good');
-            self.applyPurchases();
+            self.toast(item.name + ' alındı · çantana qoyuldu', 'good');
           } else if (res.reason === 'poor') {
             Audio2.play('locked');
             self.toast('Kifayət qədər pul yoxdur', 'bad');
           }
           self.renderShop();
+          self.updateHud();
         });
       }
       box.appendChild(b);
     });
   };
 
-  /** drain purchased consumables from the profile into the live player */
+  /**
+   * v5 — purchases live in profile.inv and are consumed by the
+   * player on demand (hotkeys 1..5). Nothing is drained at start,
+   * so a bought medkit is still there three chapters later.
+   */
   Game.prototype.applyPurchases = function () {
     var prof = Store.profile || Store.load();
     var p = this.player;
     if (!p) return;
     if (prof.hasShotgun) p.hasShotgun = true;
-    if (prof.ammo > 0) { p.ammo += prof.ammo; prof.ammo = 0; }
-    while (prof.medkits > 0 && p.hp < p.maxHp) { prof.medkits--; p.hp++; }
-    if (prof.medkits > 0 && p.hp >= p.maxHp) { /* keep for later */ }
-    if (prof.lanterns > 0) { p.lanternT = Math.max(p.lanternT, 75); prof.lanterns--; }
-    if (prof.coffees > 0) { p.coffeeT = Math.max(p.coffeeT, 40); prof.coffees--; }
-    if (prof.shields > 0) { p.shield = Math.min(2, p.shield + prof.shields); prof.shields = 0; }
-    Store.save();
     this.updateHud();
   };
 
@@ -462,20 +546,44 @@
   /* ============================================================
      FLOW
      ============================================================ */
+  /**
+   * The persistent inventory is the truth:
+   * · ammo is a shared pool (what you shoot is gone for good)
+   * · medkit / lampa / qəhvə / qalxan / fişəng / çiçək stay in the
+   *   bag until the player presses 1..5 (or gives the flower)
+   * Nothing is drained on chapter load, so a purchase made in
+   * chapter II is still usable in chapter IX.
+   */
   Game.prototype._giveConsumables = function () {
     var p = this.player;
-    var prof = Store.profile || Store.load();
-    var take = Store.takeConsumables();
-    var d = this.diff;
-    p.ammo = (d.ammoStart || 0) + take.ammo;
-    p.hasShotgun = take.hasShotgun;
-    p.shield = Math.min(2, take.shields);
-    if (take.lanterns > 0) p.lanternT = 75;
-    if (take.coffees > 0) p.coffeeT = 40;
-    var meds = (d.medStart || 0) + take.medkits;
-    while (meds > 0 && p.hp < p.maxHp) { meds--; p.hp++; }
-    prof.medkits = 0;
-    Store.save();
+    var inv = Store.inv();
+    p.hasShotgun = !!Store.profile.hasShotgun;
+    p.ammo = Math.max(0, inv.ammo | 0);
+    this._lastAmmo = p.ammo;
+    this.updateHud();
+  };
+
+  /** first entry into a fresh run: starting ammo + starting medkits */
+  Game.prototype.seedRunInventory = function () {
+    var inv = Store.inv();
+    var startAmmo = (this.diff.ammoStart || 0) + (inv.ammo || 0);
+    inv.ammo = startAmmo;
+    if (this.diff.medStart) inv.medkit = (inv.medkit || 0) + this.diff.medStart;
+    if (this.player) this.player.ammo = startAmmo;
+    if (this.player) this.player.shield = 0;
+    Store.save(true);
+    this._lastAmmo = startAmmo;
+  };
+
+  /** keep the shared ammo pool in sync with what the player carries */
+  Game.prototype.syncInventory = function () {
+    var inv = Store.inv();
+    var ammo = Math.max(0, this.player ? this.player.ammo : 0);
+    if (inv.ammo !== ammo) {
+      inv.ammo = ammo;
+      Store.save();
+    }
+    this.updateHud();
   };
 
   Game.prototype.newPlayer = function () {
@@ -548,6 +656,9 @@
     }
     this.diff = Store.diff();
     Store.clearRun();
+    /* a brand-new run starts with a clean slate of story choices */
+    prof.choices = {};
+    Store.save(true);
     this.run = this.freshRun(0);
     this.score = 0;
     this.deaths = 0;
@@ -556,7 +667,7 @@
     this._advancing = false;
     this.newPlayer();
     this.player.hp = this.diff.hearts;
-    this._giveConsumables();
+    this.seedRunInventory();
     this.loadLevel(0, { x: 0 });
     this.state = 'play';
     this.show(null);
@@ -575,8 +686,9 @@
     this._advancing = false;
     this.newPlayer();
     this.player.hp = this.diff.hearts;
+    /* chapter select never resets the bag: ammo/items carry over */
     this._giveConsumables();
-    this.loadLevel(index, { x: 0 });
+    this.loadLevel(index, { x: 0, keepInventory: true });
     this.state = 'play';
     this.show(null);
   };
@@ -596,7 +708,7 @@
     this.newPlayer();
     this.player.hp = clamp(r.hp || this.diff.hearts, 1, this.diff.hearts);
     this._giveConsumables();
-    this.loadLevel(r.level, { x: r.x || 0 });
+    this.loadLevel(r.level, { x: r.x || 0, keepInventory: true });
     this.state = 'play';
     this.show(null);
   };
@@ -661,6 +773,25 @@
     this.triggered = {};
     this.bossDown = !!run.bosses[L.id];
 
+    /* ---- v5: mode, levers, chase wall, trail ---- */
+    this.mode = L.mode || 'calm';
+    this.leversTotal = 0;
+    this.levers = 0;
+    this.playerTrail = [];
+    this.trailT = 0;
+    this.noise = 0;
+    this.choiceItem = null;
+    this.chaseX = -1400;
+    this.chaseSpeed = 92 * (this.diff.chaseSpeed || 1);
+
+    for (var lv = 0; lv < L.items.length; lv++) {
+      if (L.items[lv].type !== 'lever') continue;
+      this.leversTotal++;
+      var lk = L.id + '#i' + lv;
+      if (run.levers[lk]) this.levers++;
+    }
+    if (this.mode === 'chase') this.chaseX = (opts.x > 0 ? opts.x : L.start.x) - 620;
+
     for (var e = 0; e < L.enemies.length; e++) {
       var ek = L.id + '#e' + e;
       if (run.killed[ek]) continue;
@@ -701,6 +832,15 @@
     if (p.hp <= 0) p.hp = this.diff.hearts;
     if (p.hp > p.maxHp) p.hp = p.maxHp;
     p.ammo = Math.max(0, p.ammo);
+    p.shield = Math.min(2, p.shield || 0);
+    p.lanternT = 0;
+    p.coffeeT = 0;
+    p.flareT = 0;
+    p.noise = 0;
+    p.invuln = 0.9;
+
+    /* persistent inventory tops the player up on every chapter load */
+    if (!opts.keepInventory) this._giveConsumables();
 
     this.checkpointX = px;
     this.camX = clamp(px - W / 2, 0, Math.max(0, L.width - W));
@@ -723,6 +863,21 @@
 
     this.updateHud();
     this.persistRun();
+  };
+
+  /** loud actions wake every dormant enemy that can hear them */
+  Game.prototype.alertNearby = function (x, noise) {
+    var woke = 0;
+    for (var i = 0; i < this.enemies.length; i++) {
+      var e = this.enemies[i];
+      if (!e.dormant || e.awake) continue;
+      if (e.wake(Math.abs(e.x - x), noise)) woke++;
+    }
+    if (woke && this.toast) {
+      this.toast(woke + ' nəfər oyandı', 'bad');
+      Audio2.play('growl');
+      this.shake(3);
+    }
   };
 
   Game.prototype.showLevelCard = function (L) {
@@ -929,6 +1084,15 @@
         this.giveFinalFlower(); break;
       case 'final-leave':
         this.leaveWithoutFlower(); break;
+      case 'final-stay':
+        this.stayWithHer(); break;
+
+      case 'gallery':
+        this.openGallery(); break;
+      case 'gallery-back':
+        if (this._galleryFrom === 'ending') { this.state = 'ending'; this.show('ending'); }
+        else { this.state = 'title'; this.show('title'); this.refreshContinue(); }
+        break;
 
       case 'menu':
         this.goToMenu(); break;
@@ -1146,6 +1310,7 @@
   Game.prototype.updateHud = function () {
     var p = this.player;
     if (!p) return;
+    var c = this._hudCache;
     var hearts = document.getElementById('hearts');
     if (hearts && hearts.childElementCount !== p.maxHp) {
       hearts.innerHTML = '';
@@ -1155,8 +1320,10 @@
         im.alt = '';
         hearts.appendChild(im);
       }
+      c.hp = -1;
     }
-    if (hearts) {
+    if (hearts && c.hp !== p.hp) {
+      c.hp = p.hp;
       for (var j = 0; j < hearts.children.length; j++) {
         var full = j < p.hp;
         hearts.children[j].src = 'assets/' + (full ? 'i_heart_full' : 'i_heart_empty') + '.png';
@@ -1164,17 +1331,62 @@
       }
     }
     var a = document.getElementById('ammo-count');
-    if (a) {
+    if (a && c.ammo !== p.ammo) {
+      c.ammo = p.ammo;
       a.textContent = p.ammo;
       var chip = a.parentNode;
       if (chip && chip.classList) chip.classList.toggle('warn', p.ammo === 0);
     }
     var k = document.getElementById('key-count');
-    if (k) k.textContent = this.levelKeys;
-    var c = document.getElementById('coin-count');
-    if (c) c.textContent = Store.profile ? Store.profile.wallet : 0;
-    var fl = document.getElementById('flower-count');
-    if (fl) fl.textContent = Store.profile ? Store.profile.flowers : 0;
+    if (k && c.keys !== this.levelKeys) { c.keys = this.levelKeys; k.textContent = this.levelKeys; }
+    var w = Store.profile ? Store.profile.wallet : 0;
+    var cc = document.getElementById('coin-count');
+    if (cc && c.coins !== w) { c.coins = w; cc.textContent = w; }
+
+    /* ---- inventory hotbar (persistent items, used with 1..5) ---- */
+    var inv = Store.inv();
+    for (var s = 0; s < 5; s++) {
+      var key = ['medkit', 'lantern', 'coffee', 'shield', 'flare'][s];
+      var el = document.getElementById('slot-' + (s + 1));
+      if (!el) continue;
+      var val = inv[key] || 0;
+      var badge = el.querySelector && el.querySelector('.slot-n');
+      if (badge) badge.textContent = val;
+      if (c['slot' + s] !== val) {
+        c['slot' + s] = val;
+        el.classList.toggle('empty', val <= 0);
+      }
+    }
+
+    /* ---- mode badge: stealth / chase / puzzle ---- */
+    var badgeEl = document.getElementById('mode-badge');
+    if (badgeEl) {
+      var label = '';
+      if (this.mode === 'stealth') label = 'SƏSSİZ';
+      else if (this.mode === 'chase') label = 'QAÇ';
+      else if (this.mode === 'puzzle' && this.leversTotal) label = 'QOL ' + this.levers + '/' + this.leversTotal;
+      else if (this.mode === 'mirror') label = 'ƏKS';
+      else if (this.mode === 'dark') label = 'LAMPA [2]';
+      if (c.modeLabel !== label) {
+        c.modeLabel = label;
+        badgeEl.textContent = label;
+        badgeEl.classList.toggle('hidden', !label);
+      }
+    }
+
+    /* ---- noise meter ---- */
+    var nz = document.getElementById('noise-meter');
+    if (nz) {
+      var lvl = Math.min(1, p.noise || 0);
+      var bucket = Math.round(lvl * 10) / 10;
+      if (c.noise !== bucket) {
+        c.noise = bucket;
+        nz.style.setProperty('--n', (lvl * 100).toFixed(0) + '%');
+        nz.classList.toggle('hot', lvl > 0.55);
+      }
+      if (this.mode !== 'stealth') nz.classList.add('hidden');
+      else nz.classList.remove('hidden');
+    }
   };
 
   /* ============================================================
@@ -1253,6 +1465,30 @@
     p.update(dt, this);
     if (this.state !== 'play') return;
 
+    /* ---- v5: mirror mode needs a trail to replay ---- */
+    if (this.mode === 'mirror') {
+      this.trailT += dt;
+      if (this.trailT >= 0.05) {
+        this.trailT = 0;
+        this.playerTrail.push({ x: p.x, y: p.y, facing: p.facing, anim: p.anim });
+        if (this.playerTrail.length > 80) this.playerTrail.shift();
+      }
+    }
+
+    /* ---- v5: chase mode — the dark wall catches up when you stop ---- */
+    if (this.mode === 'chase') {
+      var slow = Math.abs(p.vx) < 26 && p.onGround;
+      this.chaseSpeed += (slow ? 96 : 26) * dt;
+      this.chaseSpeed = Math.min(210, this.chaseSpeed);
+      this.chaseX += this.chaseSpeed * dt;
+      if (this.chaseX > p.x) {
+        this.chaseX = p.x - 20;
+        p.hurt(1, this, p.x > this.chaseX ? 1 : -1, false);
+        this.chaseSpeed = 70;
+        Audio2.play('dread');
+      }
+    }
+
     // checkpoint (forward only, on the ground)
     if (p.onGround && p.alive) {
       var best = this.checkpointX;
@@ -1328,14 +1564,104 @@
   Game.prototype._npcTalk = function (npc) {
     var self = this;
     this.say(npc.talk, function () {
+      /* a decision attached to the conversation comes before the gift */
+      if (npc.choiceAfter && !self.hasAnswered(npc.choiceAfter.cid)) {
+        self.openChoice({
+          cid: npc.choiceAfter.cid,
+          prompt: npc.choiceAfter.prompt,
+          options: npc.choiceAfter.options,
+          title: 'Qərar'
+        }, function () {
+          if (npc.final) { self.openFinalChoice(npc); return; }
+          if (npc.after) self.toast(npc.after, 'good');
+        });
+        return;
+      }
       if (npc.final) { self.openFinalChoice(npc); return; }
       if (npc.after) self.toast(npc.after, 'good');
       if (npc.gift) {
-        var prof = Store.profile || Store.load();
-        if (prof.flowers > 0) self.toast('E — ağ çiçəyi ona ver', 'good');
+        var flowers = Store.countItem('flower');
+        if (flowers > 0) self.toast('E — ağ çiçəyi ona ver', 'good');
         else self.toast('Mağazadan ağ çiçək al və qayıt', 'bad');
       }
     });
+  };
+
+  /* ============================================================
+     CHOICES — a real decision overlay, stored in the profile
+     ============================================================ */
+  Game.prototype.openChoice = function (data, onDone) {
+    if (!data || !data.options || !data.options.length) {
+      if (onDone) onDone();
+      return;
+    }
+    if (this.hasAnswered(data.cid)) { if (onDone) onDone(); return; }
+
+    this._choiceData = data;
+    this._choiceDone = onDone || null;
+    this._choiceFrom = this.state;
+    this._choiceIdx = 0;
+
+    var prompt = document.getElementById('choice-prompt');
+    var title = document.getElementById('choice-title');
+    var list = document.getElementById('choice-list');
+    if (prompt) prompt.textContent = data.prompt || '';
+    if (title) title.textContent = data.title || 'Qərar';
+    if (list) {
+      list.innerHTML = '';
+      var self = this;
+      data.options.forEach(function (opt, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'choice-btn' + (i === 0 ? ' sel' : '');
+        b.innerHTML = '<b>' + opt.label + '</b>' +
+          (opt.hint ? '<i>' + opt.hint + '</i>' : '');
+        b.addEventListener('click', function () {
+          Audio2.play('ui');
+          self.answerChoice(i);
+        });
+        list.appendChild(b);
+      });
+    }
+    this.state = 'choice';
+    this.show('choice');
+    this._updateChrome();
+    Audio2.play('portal');
+  };
+
+  /** keyboard navigation used by main.js while the choice overlay is open */
+  Game.prototype.choiceNav = function (dir) {
+    var list = document.getElementById('choice-list');
+    if (!list || !list.children.length) return;
+    this._choiceIdx = (this._choiceIdx + dir + list.children.length) % list.children.length;
+    for (var i = 0; i < list.children.length; i++) {
+      list.children[i].classList.toggle('sel', i === this._choiceIdx);
+    }
+    Audio2.play('ui');
+  };
+
+  Game.prototype.answerChoice = function (index) {
+    var data = this._choiceData;
+    if (!data) return;
+    var opt = data.options[index];
+    if (!opt) return;
+    Store.choose(data.cid, opt.value);
+    this._choiceData = null;
+
+    var el = document.getElementById('choice');
+    if (el) el.classList.add('hidden');
+
+    this.toast('Qərarın yadda saxlanıldı', 'good');
+    if (data.cid === 'apology' && opt.value === 'speak') this.addScore(25);
+
+    this.state = 'play';
+    this.show(null);
+    this._updateChrome();
+
+    var done = this._choiceDone;
+    this._choiceDone = null;
+    if (done) done(opt);
+    this.updateHud();
   };
 
   /* ============================================================
@@ -1343,32 +1669,41 @@
      ============================================================ */
   Game.prototype.openFinalChoice = function (npc) {
     this._finalNpc = npc;
-    var prof = Store.profile || Store.load();
     var giveBtn = document.getElementById('btn-final-give');
+    var stayBtn = document.getElementById('btn-final-stay');
     var noteEl = document.getElementById('final-note');
-    var hasFlower = prof.flowers > 0;
+    var flowers = Store.countItem('flower');
+    var hasFlower = flowers > 0;
 
     if (giveBtn) {
       giveBtn.classList.toggle('hidden', !hasFlower);
       giveBtn.disabled = !hasFlower;
     }
+    if (stayBtn) {
+      /* the hidden path only opens for someone who kept the truth */
+      var canStay = Store.choice('folder') === 'read';
+      stayBtn.classList.toggle('hidden', !canStay);
+    }
     if (noteEl) {
+      var readTruth = Store.choice('folder') === 'read';
       noteEl.textContent = hasFlower
-        ? 'Cibind ağ çiçək var. Ona verə bilərsən — ya da susaraq get.'
-        : 'Çiçəyin yoxdur. Bu dəfə yalnız sözlərin qalır. (Mağazadan ağ çiçək alıb yenidən cəhd edə bilərsən.)';
+        ? 'Cibində ağ çiçək var. Ona verə bilərsən — ya da susaraq get.'
+        : (readTruth && Store.journalCount() >= 16)
+          ? 'Çiçəyin yoxdur. Amma hər şeyi bilirsən. Bu dəfə başqa bir yol var.'
+          : 'Çiçəyin yoxdur. Bu dəfə yalnız sözlərin qalır. (Mağazadan ağ çiçək alıb yenidən cəhd edə bilərsən.)';
     }
     this.state = 'finalchoice';
     this.show('finalchoice');
+    this._updateChrome();
   };
 
   Game.prototype.giveFinalFlower = function () {
     var npc = this._finalNpc;
+    if (!npc) return;
+    if (!Store.useItem('flower')) return;
+    Store.choose('final', 'flower');
     var prof = Store.profile || Store.load();
-    if (!npc || prof.flowers <= 0) return;
-    npc.gifted = true;
-    prof.flowers--;
     prof.gifts++;
-    prof.beaten = true;
     Store.save();
     this.gaveFinalFlower = true;
     Audio2.play('heal');
@@ -1389,21 +1724,35 @@
   };
 
   Game.prototype.leaveWithoutFlower = function () {
+    if (this.state !== 'finalchoice' && this.state !== 'play') return;
+    Store.choose('final', 'leave');
     this.gaveFinalFlower = false;
     this.show(null);
     this.finishGame();
   };
 
+  Game.prototype.stayWithHer = function () {
+    Store.choose('final', 'stay');
+    this.gaveFinalFlower = false;
+    this._finalNpc = null;
+    var self = this;
+    this.show(null);
+    Audio2.play('heal');
+    this.say([
+      { who: 'Nuran', portrait: 'nuran_0', text: 'Mən getmirəm. Bu dəfə getmirəm.' },
+      { who: 'Sanu', portrait: 'sanu_ghost', text: 'Bilirsən ki, bu otaq sənin yaddaşındır. Burada qalsan — oyanmayacaqsan.' },
+      { who: 'Nuran', portrait: 'nuran_0', text: 'Bilirəm.' }
+    ], function () { self.finishGame(); });
+  };
+
   Game.prototype._giveFlower = function (npc) {
-    var prof = Store.profile || Store.load();
-    if (prof.flowers <= 0) {
+    if (!Store.useItem('flower')) {
       this.toast('Çiçəyin yoxdur — mağazadan al', 'bad');
       return;
     }
+    var prof = Store.profile || Store.load();
     npc.gifted = true;
-    prof.flowers--;
     prof.gifts++;
-    prof.beaten = true;
     Store.save();
     Audio2.play('heal');
     this.spawnBurst(npc.x, npc.y - 50, '#ffe6f0', 24);
@@ -1419,7 +1768,7 @@
       self.addScore(60);
       self.toast('Hədiyyə qəbul edildi · +60', 'good');
       self.updateHud();
-      if (ghost) self.finishGame();
+      if (ghost) { self.openFinalChoice(npc); }
     });
   };
 
@@ -1465,16 +1814,42 @@
         break;
       case 'shotgun':
         p.hasShotgun = true;
+        Store.profile.hasShotgun = true;
         p.ammo += Math.round(20 * (dm.ammoMul || 1));
+        Store.save();
         Audio2.play('pickup');
         this.toast('Ov tüfəngi götürüldü', 'good');
         break;
       case 'gem': {
-        var prof = Store.profile || Store.load();
-        prof.flowers++;
-        Store.save();
+        Store.addItem('flower', 1);
         Audio2.play('heal');
         this.toast('Ağ çiçək tapıldı — Sanu-ya ver', 'good');
+        break;
+      }
+      case 'lever': {
+        if (this.run && item.uid) this.run.levers[item.uid] = 1;
+        this.levers++;
+        Audio2.play('door');
+        this.flash(0.2);
+        this.shake(4);
+        this.spawnBurst(item.x, item.y - 10, '#ffc070', 16);
+        this.toast('Qol işə düşdü · ' + this.levers + '/' + this.leversTotal, 'good');
+        if (this.levers >= this.leversTotal) {
+          this.toast('Bütün qollar açıqdır — qatar qapısı açıldı', 'good');
+        }
+        break;
+      }
+      case 'choice': {
+        this.choiceItem = item;
+        if (item.jid) Store.addJournal(item.jid);
+        var self2 = this;
+        var after = item.lines ? function () { self2.openChoiceItem(item); } : null;
+        if (item.lines) {
+          Audio2.play('portal');
+          this.say(item.lines, after);
+        } else {
+          this.openChoiceItem(item);
+        }
         break;
       }
       case 'photo':
@@ -1501,6 +1876,24 @@
     this.updateHud();
   };
 
+  /** a decision placed in the world (or after a note's dialog) */
+  Game.prototype.openChoiceItem = function (item) {
+    var self = this;
+    var cid = item.cid;
+    if (this.hasAnswered(cid)) {
+      this.toast('Bu qərarı artıq vermisən', 'bad');
+      return;
+    }
+    this.openChoice({
+      cid: cid,
+      title: item.title || 'Qərar',
+      prompt: item.prompt || '',
+      options: item.options || []
+    }, function () {
+      self.toast('Seçimin hekayəni dəyişdi', 'good');
+    });
+  };
+
   Game.prototype._checkExit = function () {
     var L = this.level;
     var p = this.player;
@@ -1510,6 +1903,13 @@
     if (L.exit.afterBoss && !this.bossDown) {
       this._lockMsg('Kölgəni dayandırmalısan');
       return;
+    }
+    if (L.exit.needsLevers && this.levers < L.exit.needsLevers) {
+      this._lockMsg('Qapı bağlıdır — ' + (L.exit.needsLevers - this.levers) + ' qol qalıb');
+      return;
+    }
+    if (this.mode === 'chase' && p.x < L.exit.x - 40 && this.chaseX > p.x - 120) {
+      /* you may only leave when the dark is behind you */
     }
     var needKeys = L.exit.needsKey ? 1 : (L.exit.needsKeys || 0);
     if (needKeys > 0 && this.levelKeys < needKeys) {
@@ -1565,29 +1965,61 @@
     if (this.state === 'ending') return;
     this.state = 'ending';
     var prof = Store.profile || Store.load();
-    prof.endings++;
-    prof.beaten = true;
     if (this.score > prof.bestScore) prof.bestScore = this.score;
-    Store.save();
     if (this.level) Store.markChapter(this.level.id, this.score);
     Store.unlockThrough(this.levels.length - 1);
     Store.clearRun();
     this.run = null;
     this._updateChrome();
 
-    var E = (prof.gifts > 0) ? global.GameEnding : global.GameEndingPlain;
+    /* ---- which of the six endings did these choices produce? ---- */
+    var E = Store.endingFor();
+    Store.recordEnding(E);
+
     var titleEl = document.getElementById('ending-title');
-    if (titleEl) titleEl.textContent = E.title;
+    if (titleEl) {
+      titleEl.textContent = E.title;
+      titleEl.className = 'panel-title ' + (E.tone === 'kind' ? '' : E.tone === 'bad' ? 'red' : 'red');
+    }
     var extra = '<p class="ending-stat">Çətinlik: <b>' + (this.diff ? this.diff.name : '—') +
       '</b> · Xal: <b>' + this.score + '</b> · Ölüm: <b>' + this.deaths +
-      '</b> · Verilən çiçək: <b>' + prof.gifts +
-      '</b> · Jurnal: <b>' + Store.journalCount() + ' / ' + Store.JOURNAL.length + '</b></p>';
+      '</b> · Jurnal: <b>' + Store.journalCount() + ' / ' + Store.JOURNAL.length +
+      '</b> · Sonlar: <b>' + Store.endingsFound() + ' / ' + Object.keys(Store.ENDINGS).length + '</b></p>' +
+      '<p class="ending-stat dim">Seçimlərin: firar=<b>' + (Store.choice('stranger') || '—') +
+      '</b> · qovluq=<b>' + (Store.choice('folder') || '—') +
+      '</b> · final=<b>' + (Store.choice('final') || '—') + '</b></p>';
     var body = document.getElementById('ending-body');
     if (body) {
       body.innerHTML = E.body.map(function (t) { return '<p>' + t + '</p>'; }).join('') + extra;
     }
     var self = this;
     setTimeout(function () { if (self.state === 'ending') self.show('ending'); }, 320);
+  };
+
+  /* ============================================================
+     ENDING GALLERY — the six endings you have unlocked
+     ============================================================ */
+  Game.prototype.openGallery = function () {
+    var box = document.getElementById('gallery-list');
+    if (!box) return;
+    var prof = Store.profile || Store.load();
+    box.innerHTML = '';
+    var ids = Object.keys(Store.ENDINGS);
+    ids.forEach(function (id) {
+      var e = Store.ENDINGS[id];
+      var seen = !!prof.endingsSeen[id];
+      var card = document.createElement('article');
+      card.className = 'gallery-card' + (seen ? ' seen' : ' locked');
+      card.innerHTML = '<h3>' + (seen ? e.title : (e.secret ? '??? — gizli son' : '??? — kilidli')) + '</h3>' +
+        '<p>' + (seen ? e.body.slice(0, 3).join(' ') : (e.secret
+          ? 'Bu sonu tapmaq üçün həqiqəti öyrənməli və başqa bir qərar verməlisən.'
+          : 'Bu sonu hələ açmamısan. Fərqli seçimlər et.')) + '</p>';
+      box.appendChild(card);
+    });
+    var cnt = document.getElementById('gallery-count');
+    if (cnt) cnt.textContent = Store.endingsFound() + ' / ' + ids.length;
+    this.state = 'gallery';
+    this.show('gallery');
   };
 
   /* ============================================================

@@ -111,6 +111,14 @@
     /* ---- global hotkeys outside play ---- */
     window.addEventListener('keydown', function (e) {
       var s = game.state;
+      if (s === 'choice') {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') { game.choiceNav(-1); return; }
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') { game.choiceNav(1); return; }
+        if (e.code === 'Enter' || e.code === 'KeyE' || e.code === 'Space') {
+          game.answerChoice(game._choiceIdx || 0); return;
+        }
+        return;
+      }
       if (e.code === 'Escape') {
         if (s === 'play') {
           game.state = 'pause';
