@@ -100,6 +100,7 @@
     this.maxHp = this.diff.hearts || 5;
     this.hp = this.maxHp;
     this.ammo = 0;
+    this.weaponId = 'pistol';
     this.hasShotgun = false;
     this.keys = 0;
     this.coins = 0;
@@ -122,8 +123,18 @@
     this.noise = 0;
     this.flareT = 0;
     this.mirrorDelay = [];
+    this.dashCd = 0;
+    this.dashT = 0;
+    this.airJumps = 0;
   }
   Player.prototype = Object.create(Body.prototype);
+
+  /** the weapon currently in the player's hands (never null) */
+  Player.prototype.weapon = function () {
+    var W = global.Weapons;
+    return W ? W.get(this.weaponId) : { id: 'pistol', dmg: 1, cd: 0.25, pellets: 1, spread: 0, speed: 1060, range: 470, cost: 1, knock: 30, noise: 0.4, shake: 2.6, color: '#ffe6b8', bullet: 'small', sfx: 'shoot' };
+  };
+
 
   /** loud actions feed the stealth meter and wake sleepers nearby */
   Player.prototype.makeNoise = function (amount, game) {
@@ -238,22 +249,27 @@
       }
     }
 
-    /* ---- attack: gun, or melee when the magazine is empty ---- */
+    /* ---- attack: the equipped weapon, or melee when the pool is dry ---- */
     if (st.fire && this.shootCd <= 0) {
-      if (this.ammo > 0) {
-        this.shootCd = this.hasShotgun ? 0.5 : 0.25;
-        this.ammo--;
+      var wp = this.weapon();
+      if (this.ammo >= wp.cost) {
+        this.shootCd = wp.cd * (this.diff.fireRateMul || 1);
+        this.ammo -= wp.cost;
         this.shootAnim = 0.18;
-        if (this.hasShotgun) {
-          game.fireBullet(this.x + this.facing * 30, this.y - this.h * 0.62, this.facing, 2);
-          game.fireBullet(this.x + this.facing * 26, this.y - this.h * 0.55, this.facing, 1);
-        } else {
-          game.fireBullet(this.x + this.facing * 26, this.y - this.h * 0.62, this.facing, 1);
+        var bx = this.x + this.facing * 26;
+        var by = this.y - this.h * 0.62;
+        var n = wp.pellets || 1;
+        for (var k = 0; k < n; k++) {
+          var off = n === 1 ? 0 : (k - (n - 1) / 2) * (wp.spread || 0) * 26;
+          var vy = n === 1 ? 0 : (k - (n - 1) / 2) * (wp.spread || 0) * 620;
+          if (n > 1) vy += (Math.random() - 0.5) * 40;
+          game.fireBullet(bx, by + off * 0.16, this.facing, wp.dmg, wp, vy);
         }
-        Audio2.play('shoot');
-        game.shake(this.hasShotgun ? 4.2 : 2.6);
-        this.vx -= this.facing * (this.hasShotgun ? 55 : 30);
-        this.makeNoise(this.hasShotgun ? 0.55 : 0.40, game);
+        Audio2.play(wp.sfx || 'shoot');
+        game.shake(wp.shake || 2.6);
+        this.vx -= this.facing * (wp.knock || 20);
+        this.makeNoise(wp.noise || 0.4, game);
+        game.onShoot && game.onShoot(wp);
       } else {
         this.shootCd = 0.22;
         this._melee(game);
@@ -275,28 +291,33 @@
   /** short-range strike used when out of ammo — the run can never softlock */
   Player.prototype._melee = function (game) {
     if (this.meleeCd > 0) return;
-    this.meleeCd = 0.45;
+    this.meleeCd = 0.40;
     this.meleeAnim = 0.22;
     this.shootAnim = 0.12;
     Audio2.play('hit');
     game.shake(2.4);
-    var reach = 62;
+    var reach = 74;
     var cx = this.x + this.facing * reach * 0.55;
     var cy = this.y - this.h * 0.55;
     var hitAny = false;
+    var pb = this.box();
     for (var i = 0; i < game.enemies.length; i++) {
       var e = game.enemies[i];
       if (e.dead) continue;
       var eb = e.box();
       var dx = (eb.x + eb.w / 2) - cx;
       var dy = (eb.y + eb.h / 2) - cy;
-      if (Math.abs(dx) < reach * 0.75 + eb.w / 2 && Math.abs(dy) < 52 + eb.h / 2) {
-        e.damage(1, game, this.x);
+      /* in front of me OR literally standing inside me — both count */
+      var inFront = Math.abs(dx) < reach * 0.9 + eb.w / 2 && Math.abs(dy) < 54 + eb.h / 2;
+      var inside = overlap(eb, pb);
+      if (inFront || inside) {
+        e.damage(2, game, this.x);
         hitAny = true;
       }
     }
     game.spawnBurst(cx, cy, hitAny ? '#ffd0a0' : '#8a7a86', hitAny ? 8 : 4);
     if (!hitAny) game.floatText(cx, cy - 10, 'zəif zərbə', '#9a8b95');
+    else this.makeNoise(0.16, game);
   };
 
   Player.prototype.hurt = function (amount, game, knockDir, forceFall) {
@@ -407,7 +428,20 @@
     eye2:         { spr: 'mon_eye2',    w: 74, h: 84, hp: 30, dmg: 2, speed: 72,  chase: 1000, gravity: false, drawH: 88, score: 20, boss: true, shooter: true },
     /* --- v5 additions --- */
     twin:         { spr: 'nuran_back',  w: 30, h: 64, hp: 6,  dmg: 1, speed: 0,   chase: 1400, gravity: false, drawH: 68, score: 6, mirror: true },
-    sleeper:      { spr: 'mon_crouch',  w: 52, h: 52, hp: 3,  dmg: 1, speed: 96,  chase: 360, gravity: true,  drawH: 54, score: 2, dormant: true }
+    sleeper:      { spr: 'mon_crouch',  w: 52, h: 52, hp: 3,  dmg: 1, speed: 96,  chase: 360, gravity: true,  drawH: 54, score: 2, dormant: true },
+
+    /* --- v6 bestiary --- */
+    warden:       { spr: 'mon_warden',  w: 40, h: 100, hp: 6, dmg: 2, speed: 66, chase: 420, gravity: true,  drawH: 104, score: 5, armored: 0.6 },
+    drowned:      { spr: 'mon_drowned', w: 64, h: 82,  hp: 5, dmg: 2, speed: 84, chase: 380, gravity: true,  drawH: 84,  score: 4, slowOnHit: true },
+    bell:         { spr: 'mon_bell',    w: 44, h: 100, hp: 5, dmg: 2, speed: 72, chase: 520, gravity: true,  drawH: 102, score: 5, shout: true },
+    choir:        { spr: 'mon_choir',   w: 46, h: 92,  hp: 4, dmg: 2, speed: 78, chase: 560, gravity: false, drawH: 94,  score: 6, singer: true },
+    brute:        { spr: 'mon_brute',   w: 78, h: 110, hp: 14, dmg: 3, speed: 56, chase: 460, gravity: true,  drawH: 112, score: 9, armored: 0.35 },
+    spitter:      { spr: 'mon_spitter', w: 56, h: 70,  hp: 4, dmg: 2, speed: 62, chase: 640, gravity: true,  drawH: 72,  score: 5, spits: true },
+    swarm:        { spr: 'mon_swarm',   w: 36, h: 34,  hp: 2, dmg: 1, speed: 150, chase: 620, gravity: false, drawH: 36, score: 2, erratic: true },
+    shade:        { spr: 'mon_shade',   w: 40, h: 88,  hp: 5, dmg: 2, speed: 128, chase: 700, gravity: false, drawH: 90, score: 4, phasing: true },
+    heart:        { spr: 'mon_heart',   w: 96, h: 118, hp: 52, dmg: 3, speed: 62, chase: 1200, gravity: false, drawH: 120, score: 40, boss: true, shooter: true, bossKind: 'heart' },
+    bellboss:     { spr: 'mon_bellboss', w: 96, h: 146, hp: 44, dmg: 3, speed: 74, chase: 1150, gravity: true, drawH: 148, score: 36, boss: true, bossKind: 'bell', shout: true },
+    bellkeeper:   { spr: 'mon_bellboss', w: 80, h: 120, hp: 22, dmg: 2, speed: 70, chase: 1000, gravity: true, drawH: 122, score: 18, miniBoss: true, bossKind: 'bell' }
   };
 
   function Enemy(cfg, diff) {
@@ -432,7 +466,10 @@
     this.bob = Math.random() * 6.28;
     this.growlT = 1 + Math.random() * 4;
     this.shootT = 1.8 + Math.random() * 1.4;
-    this.isBoss = !!d.boss;
+    this.shoutT = 2.5 + Math.random() * 2;
+    this.singT = 1.5 + Math.random() * 2;
+    this.isBoss = !!(d.boss || cfg.boss);
+    this.isMiniBoss = !!d.miniBoss;
     this.final = !!cfg.final;
     this.spawnX = cfg.x;
     this.touchCd = 0;
@@ -565,6 +602,11 @@
         this.vx = this.dir * this.speed * 0.55;
         this.facing = this.dir;
       }
+      // spitters keep their distance instead of diving in
+      if (this.def.spits && this.aggro && Math.abs(dx) < 220) {
+        this.vx = (dx > 0 ? -1 : 1) * this.speed * 0.8;
+        this.facing = dx > 0 ? 1 : -1;
+      }
       this.vy = Math.min(this.vy + GRAV * dt, MAX_FALL);
       moveAndCollide(this, solids, dt);
       this.x = clamp(this.x, this.w / 2, lvlW - this.w / 2);
@@ -575,6 +617,10 @@
         var len = Math.max(1, dist);
         this.vx = (dx / len) * sp;
         this.vy = (dy / len) * sp * 0.8 + Math.sin(this.bob) * 16;
+        if (this.def.erratic) {
+          this.vx += Math.sin(this.bob * 3.1) * 90;
+          this.vy += Math.cos(this.bob * 2.7) * 80;
+        }
         this.facing = dx > 0 ? 1 : -1;
       } else {
         this.vx = Math.sin(this.bob * 0.6) * 20;
@@ -582,6 +628,54 @@
       }
       this.x = clamp(this.x + this.vx * dt, this.w / 2, lvlW - this.w / 2);
       this.y = clamp(this.y + this.vy * dt, 150, 560);
+    }
+
+    /* ---- spitter acid glob ---- */
+    if (this.def.spits) {
+      this.shootT -= dt;
+      if (this.shootT <= 0 && dist < 620 && p.alive && this.aggro) {
+        this.shootT = 2.0 + Math.random() * 1.2;
+        var sang = Math.atan2((p.y - p.h * 0.5) - (this.y - this.h * 0.6), p.x - this.x);
+        game.enemyBullets.push(new EnemyBullet(
+          this.x + Math.cos(sang) * 20, this.y - this.h * 0.6,
+          Math.cos(sang) * 360, Math.sin(sang) * 360, 'acid'
+        ));
+        Audio2.play('spit');
+      }
+    }
+
+    /* ---- bell shout: stuns the player for a heartbeat ---- */
+    if (this.def.shout) {
+      this.shoutT = (this.shoutT || 3.5) - dt;
+      if (this.shoutT <= 0 && dist < 380 && p.alive) {
+        this.shoutT = 5.5 + Math.random() * 2.5;
+        Audio2.play('bell');
+        game.shake(6);
+        game.flash(0.18);
+        game.ringShock && game.ringShock(this.x, this.y - this.h * 0.6, 300);
+        if (Math.abs(p.x - this.x) < 260) {
+          p.vx = (p.x > this.x ? 1 : -1) * 380;
+          p.vy = -280;
+          p.hurt(1, game, (p.x > this.x ? 1 : -1));
+        }
+      }
+    }
+
+    /* ---- choir singer: buffs nearby enemies ---- */
+    if (this.def.singer) {
+      this.singT = (this.singT || 2) - dt;
+      if (this.singT <= 0) {
+        this.singT = 3.0;
+        game.spawnBurst(this.x, this.y - this.h * 0.7, '#d8b8ff', 6);
+        for (var q = 0; q < game.enemies.length; q++) {
+          var mate = game.enemies[q];
+          if (mate === this || mate.dead) continue;
+          if (Math.abs(mate.x - this.x) < 340 && Math.abs(mate.y - this.y) < 220) {
+            mate.speed = mate.baseSpeed * 1.22;
+            mate.aggro = true;
+          }
+        }
+      }
     }
 
     // boss teleport (never into a wall, never off the map)
@@ -640,6 +734,8 @@
 
   Enemy.prototype.damage = function (n, game, fromX) {
     if (this.dead) return;
+    /* heavy bodies soak part of the damage instead of ignoring it */
+    if (this.def.armored) n = Math.max(1, n * (1 - this.def.armored));
     this.hp -= n;
     this.hitFlash = 0.18;
     this.aggro = true;
@@ -647,6 +743,10 @@
     if (!this.isBoss) this.x += push * 5;
     Audio2.play('hit');
     game.spawnBurst(this.x, this.y - this.h * 0.6, '#c4233a', 7);
+    if (this.def.slowOnHit) {
+      this.speed = Math.max(20, this.speed * 0.86);
+      this.slowT = 1.4;
+    }
     if (this.hp <= 0) {
       this.dead = true;
       game.spawnBurst(this.x, this.y - this.h * 0.55, '#7a1020', 22);
@@ -658,13 +758,14 @@
       if (Math.random() < 0.62 * (dm.coinMul || 1)) game.dropCoin(this.x, this.y - 20);
       if (Math.random() < 0.12 * (dm.medDropMul || 1)) game.dropItemAt('medkit', this.x, this.y - 20);
       if (Math.random() < 0.2) game.dropItemAt('ammo', this.x + 14, this.y - 20);
-      if (this.isBoss) {
+      if (this.isBoss || this.def.miniBoss) {
         // a dead boss always leaves resupply so the next fight is winnable
         game.dropItemAt('ammo', this.x - 26, this.y - 20);
         game.dropItemAt('ammo', this.x + 26, this.y - 20);
         game.dropItemAt('medkit', this.x, this.y - 20);
-        game.onBossDown(this);
+        if (this.isBoss) game.onBossDown(this);
       }
+      if (game.onEnemyKilled) game.onEnemyKilled(this);
     }
   };
 
@@ -687,6 +788,8 @@
     var rad = this.isBoss ? 30 : 13;
     var glowCol = this.mirror ? 'rgba(120,190,255,0.42)'
       : (this.dormant && !this.awake) ? 'rgba(120,80,90,0.22)'
+      : this.def.phasing ? 'rgba(90,170,255,0.5)'
+      : this.def.singer ? 'rgba(200,150,255,0.45)'
       : 'rgba(255,60,70,0.55)';
     Assets.blitGlow(ctx, glowCol, ex, ey, rad, 1);
 
@@ -847,21 +950,43 @@
   /* ------------------------------------------------------------
      BULLETS
      ------------------------------------------------------------ */
-  function Bullet(x, y, dir, power) {
+  function Bullet(x, y, dir, power, wp, vy) {
     this.x = x; this.y = y;
     this.dir = dir;
-    this.speed = 980;
-    this.life = 1.15;
-    this.dead = false;
+    this.vy = vy || 0;
+    wp = wp || {};
+    this.speed = wp.speed || 980;
+    this.range = wp.range || 470;          /* hard distance limit — never infinite */
+    this.travelled = 0;
     this.power = power || 1;
+    this.pierce = wp.pierce || 0;
+    this.hitSet = null;
+    this.color = wp.color || '#ffe6b8';
+    this.kind = wp.bullet || 'small';
+    this.dead = false;
     this.trail = [];
+    this.life = 4;
   }
   Bullet.prototype.update = function (dt, game) {
+    if (this.dead) return;
     this.life -= dt;
     if (this.life <= 0) { this.dead = true; return; }
+
+    var stepX = this.dir * this.speed * dt;
+    var stepY = this.vy * dt;
     this.trail.push(this.x, this.y);
-    if (this.trail.length > 12) { this.trail.shift(); this.trail.shift(); }
-    this.x += this.dir * this.speed * dt;
+    if (this.trail.length > 14) { this.trail.shift(); this.trail.shift(); }
+    this.x += stepX;
+    this.y += stepY;
+    this.travelled += Math.abs(stepX);
+
+    /* ---- the shot dies at its maximum range ---- */
+    if (this.travelled >= this.range) {
+      this.dead = true;
+      game.spawnBurst(this.x, this.y, this.color, 4);
+      return;
+    }
+
     var box = { x: this.x - 4, y: this.y - 4, w: 8, h: 8 };
 
     for (var i = 0; i < game.solids.length; i++) {
@@ -878,44 +1003,68 @@
       if (e.dead) continue;
       var eb = e.box();
       if (box.x < eb.x + eb.w && box.x + box.w > eb.x && box.y < eb.y + eb.h && box.y + box.h > eb.y) {
+        if (this.hitSet && this.hitSet[j]) continue;
         e.damage(this.power, game, this.x - this.dir * 10);
-        this.dead = true;
-        return;
+        if (this.pierce > 0) {
+          this.hitSet = this.hitSet || {};
+          this.hitSet[j] = 1;
+          this.pierce--;
+        } else {
+          this.dead = true;
+          return;
+        }
       }
     }
   };
   Bullet.prototype.draw = function (ctx) {
+    var len = this.kind === 'rifle' ? 22 : this.kind === 'void' ? 15 : 12;
     for (var i = 0; i < this.trail.length; i += 2) {
       var a = (i / 2 + 1) / (this.trail.length / 2);
-      ctx.fillStyle = 'rgba(255,190,120,' + (a * 0.32) + ')';
+      ctx.fillStyle = 'rgba(255,190,120,' + (a * 0.30) + ')';
       ctx.fillRect(this.trail[i] - 2, this.trail[i + 1] - 1.5, 4, 3);
     }
+    if (this.kind === 'void') {
+      Assets.blitGlow(ctx, 'rgba(160,110,255,0.55)', this.x, this.y, 26, 1);
+      ctx.fillStyle = 'rgba(198,172,255,0.95)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
     ctx.save();
-    ctx.shadowColor = '#ffcf8a';
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = '#ffe6b8';
-    ctx.fillRect(this.x - 7, this.y - 2, 14, 4);
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = this.kind === 'rifle' ? 16 : 10;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x - len / 2, this.y - 1.6, len, 3.2);
     ctx.restore();
   };
 
   /* enemy projectile */
-  function EnemyBullet(x, y, vx, vy) {
+  function EnemyBullet(x, y, vx, vy, kind) {
     this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-    this.life = 3.2; this.dead = false; this.r = 7;
+    this.kind = kind || 'orb';
+    this.life = 3.2; this.dead = false; this.r = this.kind === 'acid' ? 8 : 7;
+    this.dmg = this.kind === 'acid' ? 2 : 1;
   }
   EnemyBullet.prototype.update = function (dt, game) {
     this.life -= dt;
     if (this.life <= 0) { this.dead = true; return; }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    if (this.kind === 'acid') this.vy += 520 * dt;
     var p = game.player;
     if (p.alive) {
       var b = p.box();
       if (this.x + this.r > b.x && this.x - this.r < b.x + b.w &&
           this.y + this.r > b.y && this.y - this.r < b.y + b.h) {
-        p.hurt(1, game, this.vx > 0 ? 1 : -1);
+        p.hurt(this.dmg, game, this.vx > 0 ? 1 : -1);
         this.dead = true;
-        game.spawnBurst(this.x, this.y, '#e04158', 10);
+        game.spawnBurst(this.x, this.y, this.kind === 'acid' ? '#a8e260' : '#e04158', 10);
+        game.splash && game.splash(this.x, this.y, this.kind === 'acid' ? '#a8e260' : '#e04158', 8);
         return;
       }
     }
@@ -924,11 +1073,11 @@
       if (s.oneway) continue;
       if (this.x > s.x && this.x < s.x + s.w && this.y > s.y && this.y < s.y + s.h) {
         this.dead = true;
-        game.spawnBurst(this.x, this.y, '#a81b2e', 6);
+        game.spawnBurst(this.x, this.y, this.kind === 'acid' ? '#7ea848' : '#a81b2e', 6);
         return;
       }
     }
-    if (this.y > 780 || this.x < -60 || this.x > game.level.width + 60) this.dead = true;
+    if (this.y > 800 || this.x < -60 || this.x > game.level.width + 60) this.dead = true;
   };
   EnemyBullet.prototype.draw = function (ctx, time) {
     var pulse = 0.8 + Math.sin((time || 0) * 9) * 0.2;

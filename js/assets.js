@@ -16,10 +16,19 @@
     bg_class:     'assets/bg_class.png',
     bg_room:      'assets/bg_room.png',
     bg_street:    'assets/bg_street.png',
+    bg_forest:    'assets/bg_forest.png',
+    /* v6 — new locations */
+    bg_cathedral: 'assets/bg_cathedral.png',
+    bg_pier:      'assets/bg_pier.png',
+    bg_cloister:  'assets/bg_cloister.png',
+    bg_archive:   'assets/bg_archive.png',
+    bg_void:      'assets/bg_void.png',
+    bg_mirrorhall:'assets/bg_mirrorhall.png',
 
     // --- terrain ---
     tex_brick:    'assets/tex_brick.png',
     tex_ground:   'assets/tex_ground.png',
+    tex_iron:     'assets/tex_iron.png',
 
     // --- Nuran (protagonist) ---
     nuran_0:      'assets/nuran_0.png',
@@ -48,6 +57,17 @@
     mon_horn:     'assets/mon_horn.png',
     mon_veil:     'assets/mon_veil.png',
     mon_eye2:     'assets/mon_eye2.png',
+    /* v6 — new bestiary */
+    mon_warden:   'assets/mon_warden.png',
+    mon_drowned:  'assets/mon_drowned.png',
+    mon_bell:     'assets/mon_bell.png',
+    mon_choir:    'assets/mon_choir.png',
+    mon_brute:    'assets/mon_brute.png',
+    mon_spitter:  'assets/mon_spitter.png',
+    mon_swarm:    'assets/mon_swarm.png',
+    mon_shade:    'assets/mon_shade.png',
+    mon_heart:    'assets/mon_heart.png',
+    mon_bellboss: 'assets/mon_bellboss.png',
 
     // --- items ---
     i_bullets:    'assets/i_bullets.png',

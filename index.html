@@ -28,6 +28,12 @@
         <img src="assets/i_bullets.png" alt="" class="chip-icon" />
         <span id="ammo-count">0</span>
       </div>
+      <div class="hud-chip weapon-chip" title="Silah · Q/F">
+        <img id="weapon-icon" src="assets/i_pistol.png" alt="" class="chip-icon" />
+        <span id="weapon-name">Tapança</span>
+        <button type="button" class="wbtn" id="weapon-prev" aria-label="Əvvəlki silah">‹</button>
+        <button type="button" class="wbtn" id="weapon-next" aria-label="Növbəti silah">›</button>
+      </div>
       <div class="hud-chip" title="Açar">
         <img src="assets/i_key.png" alt="" class="chip-icon" />
         <span id="key-count">0</span>
@@ -181,7 +187,8 @@
       <h1 class="game-title">SƏN HƏLƏ DƏ<br /><span>MƏNİ AXTARIRSAN?</span></h1>
       <p class="title-tag">“Bəzən insan sevdiyi şeyləri itirməkdən qorxur.”</p>
       <div class="menu title-menu">
-        <button type="button" class="btn btn-primary" id="btn-new">Yeni oyun</button>
+        <button type="button" class="btn btn-primary" id="btn-endless">SONSUZ REJİM</button>
+        <button type="button" class="btn" id="btn-new">Hekayə modu · Yeni oyun</button>
         <button type="button" class="btn hidden" id="btn-continue">Davam et</button>
         <button type="button" class="btn hidden" id="btn-chapters">Bölmələr</button>
         <button type="button" class="btn" id="btn-shop-title">Mağaza</button>
@@ -190,7 +197,7 @@
         <button type="button" class="btn" id="btn-settings-title">Tənzimləmələr</button>
         <button type="button" class="btn btn-ghost" id="btn-install">Tətbiqi quraşdır</button>
       </div>
-      <p class="title-foot">12 bölmə · 6 son · 3 çətinlik · seçimlər · oflayn oynanır</p>
+      <p class="title-foot">12 bölmə · sonsuz rejim · 5 silah · 20 yeni canavar · 6 son · oflayn oynanır</p>
     </div>
   </div>
 
@@ -271,6 +278,7 @@
         <div class="howto-row"><span class="kbd big">S</span><div>Əyilmək — alçaq yerlərdə.</div></div>
         <div class="howto-row"><span class="kbd big">E</span><div>Qarşılıqlı əlaqə: qapı, məktub, telefon, Sanu, çiçək vermək.</div></div>
         <div class="howto-row"><span class="kbd big">J</span><div>Atəş (siçan da işləyir). Güllə bitəndə yumruq zərbəsi işləyir.</div></div>
+        <div class="howto-row"><span class="kbd big">Q</span><span class="kbd big">F</span><div>Silahı dəyiş (tapança · tüfəng · avtomat · nişangah · boşluq topu).</div></div>
         <div class="howto-row"><span class="kbd big">Esc</span><div>Fasilə / jurnal / menyu.</div></div>
       </div>
       <ul class="howto-tips">
@@ -293,6 +301,7 @@
       <h2 class="panel-title red">Sən itdin.</h2>
       <p class="panel-sub" id="death-quote">Qaranlıq səni uddu...</p>
       <p class="panel-note">Yığdığın pul və öldürdüyün düşmənlər saxlanılır. Yoxlama nöqtəsindən davam et.</p>
+      <p class="panel-note" id="death-endless" style="display:none">Sonsuz rejim: dalğa baştan başlayır, xal və pul səninlə qalır.</p>
       <div class="menu">
         <button type="button" class="btn btn-primary" data-act="retry">Yoxlama nöqtəsindən</button>
         <button type="button" class="btn hidden" id="btn-ease" data-act="ease">Çətinliyi azalt</button>
@@ -403,6 +412,8 @@
 <script src="js/assets.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/input.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/endless.js"></script>
 <script src="js/levels.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/game.js"></script>

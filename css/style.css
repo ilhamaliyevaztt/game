@@ -798,3 +798,16 @@ canvas#game{
   .slot img{ width:22px; height:22px; }
   .noise-meter{ width:70px; }
 }
+
+
+/* ================= v6: weapon chip / endless ================= */
+.weapon-chip { gap: 5px; }
+.weapon-chip #weapon-name { font-size: 11px; letter-spacing: .04em; }
+.wbtn {
+  width: 18px; height: 18px; line-height: 1; padding: 0;
+  border: 1px solid rgba(224,65,88,.45); border-radius: 4px;
+  background: rgba(12,6,14,.75); color: #e9dde3; cursor: pointer;
+  font-size: 13px;
+}
+.wbtn:hover { border-color: rgba(224,65,88,.95); color: #fff; }
+#btn-endless { letter-spacing: .12em; font-weight: 700; }

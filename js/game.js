@@ -21,6 +21,13 @@
 
   var W = 1024, H = 576;
   var STEP = 1 / 60;
+
+  /* weapons.js may be absent in headless tooling — never crash on it */
+  var Weapons = global.Weapons || {
+    get: function () { return { id: 'pistol', name: 'Tapança', icon: 'i_pistol', cost: 1, dmg: 1, cd: 0.25, pellets: 1, spread: 0, speed: 1060, range: 470 }; },
+    owned: function () { return [{ id: 'pistol' }]; },
+    cycle: function () { return { id: 'pistol', name: 'Tapança' }; }
+  };
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
   var OVERLAYS = ['title', 'howto', 'settings', 'pause', 'death', 'ending',
@@ -103,6 +110,9 @@
     this._hudCache = {};
     this.noiseSafe = 0;
 
+    this.isEndless = false;
+    this.endlessWave = 0;
+
     this._initRain();
     this._bindUi();
     this._loadSettings();
@@ -176,7 +186,19 @@
       if (el) el.addEventListener(ev, fn);
     }
 
-    on('btn-new', 'click', function () { self.openDifficulty(); });
+    on('btn-endless', 'click', function () {
+      Audio2.resume();
+      self.openDifficulty();
+      self._endlessPick = true;
+      var b = document.getElementById('btn-start-run');
+      if (b) b.textContent = 'SONSUZA BAŞLA · ' + Store.diff().name;
+    });
+    on('btn-new', 'click', function () {
+      self._endlessPick = false;
+      self.openDifficulty();
+      var b2 = document.getElementById('btn-start-run');
+      if (b2) b2.textContent = 'Başla · ' + (self.pendingDifficulty ? Store.DIFFICULTIES[self.pendingDifficulty].name : Store.diff().name);
+    });
     on('btn-continue', 'click', function () { self.continueRun(); });
     on('btn-chapters', 'click', function () { self.openChapters(); });
     on('btn-shop-title', 'click', function () { self.openShop('title'); });
@@ -244,10 +266,16 @@
       if (self.state !== 'play' && self.state !== 'dialog') return;
       var map = { Digit1: 'medkit', Digit2: 'lantern', Digit3: 'coffee', Digit4: 'shield', Digit5: 'flare' };
       var key = map[e.code];
-      if (!key) return;
-      e.preventDefault();
-      self.useItem(key);
+      if (key) { e.preventDefault(); self.useItem(key); return; }
+      if (e.code === 'KeyQ') { e.preventDefault(); self.cycleWeapon(-1); return; }
+      if (e.code === 'KeyF') { e.preventDefault(); self.cycleWeapon(1); return; }
     });
+
+    /* ---- weapon picker buttons ---- */
+    var wprev = document.getElementById('weapon-prev');
+    var wnext = document.getElementById('weapon-next');
+    if (wprev) wprev.addEventListener('click', function (e) { e.preventDefault(); self.cycleWeapon(-1); });
+    if (wnext) wnext.addEventListener('click', function (e) { e.preventDefault(); self.cycleWeapon(1); });
   };
 
   /* ============================================================
@@ -298,7 +326,7 @@
       x.classList.toggle('sel', x.getAttribute('data-diff') === key);
     });
     var btn = document.getElementById('btn-start-run');
-    if (btn) btn.textContent = 'Başla · ' + Store.DIFFICULTIES[key].name;
+    if (btn) btn.textContent = (this._endlessPick ? 'SONSUZA BAŞLA · ' : 'Başla · ') + Store.DIFFICULTIES[key].name;
   };
 
   /* ============================================================
@@ -348,7 +376,7 @@
     if (!r.killed || typeof r.killed !== 'object') r.killed = {};
     if (!r.bosses || typeof r.bosses !== 'object') r.bosses = {};
     if (!r.levers || typeof r.levers !== 'object') r.levers = {};
-    r.level = clamp(r.level | 0, 0, this.levels.length - 1);
+    r.level = clamp(r.level | 0, 0, (this.levels.length || 1) - 1);
     r.levelCoins = Math.max(0, Number(r.levelCoins) || 0);
     return r;
   };
@@ -505,6 +533,7 @@
     var p = this.player;
     if (!p) return;
     if (prof.hasShotgun) p.hasShotgun = true;
+    this.syncWeapons(true);
     this.updateHud();
   };
 
@@ -558,6 +587,8 @@
     var p = this.player;
     var inv = Store.inv();
     p.hasShotgun = !!Store.profile.hasShotgun;
+    p.weaponId = p.weaponId || 'pistol';
+    this.syncWeapons(true);
     p.ammo = Math.max(0, inv.ammo | 0);
     this._lastAmmo = p.ammo;
     this.updateHud();
@@ -693,6 +724,46 @@
     this.show(null);
   };
 
+  /* ============================================================
+     ENDLESS — infinite procedurally generated platforming
+     ============================================================ */
+  Game.prototype.startEndless = function (diffKey) {
+    if (!global.Endless) { this.toast('Sonsuz rejim yüklənmədi', 'bad'); return; }
+    Audio2.resume();
+    Audio2.play('portal');
+    var prof = Store.profile || Store.load();
+    if (diffKey && Store.DIFFICULTIES[diffKey]) {
+      prof.difficulty = diffKey;
+      Store.save(true);
+    }
+    this.diff = Store.diff();
+    this.isEndless = true;
+    this.endlessWave = 1;
+    Store.clearRun();
+    this.run = this.freshRun(0);
+    this.score = 0;
+    this.deaths = 0;
+    this.deathsHere = 0;
+    this.bossDown = false;
+    this._advancing = false;
+    this.newPlayer();
+    this.player.hp = this.diff.hearts;
+    this.seedRunInventory();
+    /* endless is a combat mode: always start with a real gun */
+    if (!Store.profile.hasShotgun && !(Store.profile.weapons && (Store.profile.weapons.smg || Store.profile.weapons.rifle))) {
+      this.player.ammo = Math.max(this.player.ammo, 90);
+    }
+    this.loadLevel(0, { x: 0 });
+    this.state = 'play';
+    this.show(null);
+    this.toast('SONSUZ REJİM · hər 20 dalğada boss', 'good');
+  };
+
+  Game.prototype.endlessBest = function () {
+    var prof = Store.profile || Store.load();
+    return prof.endlessBest || 0;
+  };
+
   Game.prototype.continueRun = function () {
     var r = this.loadRunState();
     if (!r) { this.startNewGame(); return; }
@@ -703,7 +774,7 @@
     this.score = r.score || 0;
     this.deaths = r.deaths || 0;
     this.deathsHere = 0;
-    this.bossDown = !!r.bosses[this.levels[r.level].id];
+    this.bossDown = !!(this.levels[r.level] && r.bosses[this.levels[r.level].id]);
     this._advancing = false;
     this.newPlayer();
     this.player.hp = clamp(r.hp || this.diff.hearts, 1, this.diff.hearts);
@@ -737,11 +808,26 @@
   /* ============================================================
      LEVEL LOADING
      ============================================================ */
+  Game.prototype.levelCount = function () {
+    return this.isEndless ? 999 : this.levels.length;
+  };
+
   Game.prototype.loadLevel = function (index, opts) {
     opts = opts || {};
-    index = clamp(index, 0, this.levels.length - 1);
+    index = clamp(index, 0, this.levelCount() - 1);
     this.levelIndex = index;
-    var L = this.levels[index];
+    var L;
+    if (this.isEndless) {
+      L = global.Endless.build(index + 1);
+      L.index = index;
+      L.spawn = L.start;
+      L.exit = L.exit || null;
+      if (L.exit) L.exit.to = index + 1;
+      this.endlessWave = index + 1;
+      this.level = L;
+    } else {
+      L = this.levels[index];
+    }
     this.level = L;
     var run = this.run || this.freshRun(index);
     this.run = run;
@@ -946,6 +1032,7 @@
 
   Game.prototype.goToMenu = function () {
     this.persistRun();
+    this.isEndless = false;
     this.state = 'title';
     this.acc = 0;
     Audio2.setRain('light');
@@ -980,7 +1067,7 @@
     if (q) q.textContent = quotes[Math.floor(Math.random() * quotes.length)];
 
     // gentle help: after repeated deaths, offer the kinder mode
-    var softer = Store.softerThan(this.diff.key);
+    var softer = this.isEndless ? null : Store.softerThan(this.diff.key);
     var easeBtn = document.getElementById('btn-ease');
     if (easeBtn) {
       if (softer && this.deathsHere >= 3) {
@@ -1038,6 +1125,7 @@
         this.state = 'play'; this.show(null); break;
 
       case 'start-run':
+        if (this._endlessPick) { this._endlessPick = false; this.startEndless(this.pendingDifficulty); break; }
         this.askPrologueIfNeeded(this.pendingDifficulty); break;
 
       case 'difficulty-back':
@@ -1217,9 +1305,68 @@
     return null;
   };
 
-  Game.prototype.fireBullet = function (x, y, dir, power) {
-    this.bullets.push(new Ent.Bullet(x, y, dir, power || 1));
-    this.spawnBurst(x + dir * 14, y, '#ffd9a0', 4);
+  /* ============================================================
+     WEAPONS — owned list, switching, HUD chip
+     ============================================================ */
+  Game.prototype.syncWeapons = function (silent) {
+    var prof = Store.profile || Store.load();
+    if (!prof.weapons) prof.weapons = {};
+    if (prof.hasShotgun) prof.weapons.shotgun = 1;
+    var have = Weapons.owned(prof);
+    var p = this.player;
+    if (!p) return have;
+    var found = false;
+    for (var i = 0; i < have.length; i++) if (have[i].id === p.weaponId) found = true;
+    if (!found) p.weaponId = have.length ? have[have.length - 1].id : 'pistol';
+    this.updateWeaponHud();
+    if (!silent && have.length > 1) this.toast('Silah: ' + Weapons.get(p.weaponId).name, 'good');
+    return have;
+  };
+
+  Game.prototype.cycleWeapon = function (dir) {
+    var p = this.player;
+    if (!p) return;
+    var prof = Store.profile || Store.load();
+    var w = Weapons.cycle(p.weaponId, prof, dir || 1);
+    p.weaponId = w.id;
+    p.shootCd = Math.max(p.shootCd, 0.12);
+    Audio2.play('ui');
+    this.updateWeaponHud();
+    this.toast(w.name, 'good');
+  };
+
+  Game.prototype.updateWeaponHud = function () {
+    var p = this.player;
+    var el = document.getElementById('weapon-name');
+    if (!el || !p) return;
+    var w = Weapons.get(p.weaponId);
+    var prof = Store.profile || Store.load();
+    var have = Weapons.owned(prof).length;
+    el.textContent = w.name + (have > 1 ? '  (' + have + ')' : '');
+    var ic = document.getElementById('weapon-icon');
+    if (ic) ic.src = 'assets/' + w.icon + '.png';
+  };
+
+  Game.prototype.fireBullet = function (x, y, dir, power, wp, vy) {
+    this.bullets.push(new Ent.Bullet(x, y, dir, power || 1, wp, vy || 0));
+    this.spawnBurst(x + dir * 14, y, (wp && wp.color) || '#ffd9a0', 4);
+  };
+
+  /** small ground splash FX used by acid / heavy rounds */
+  Game.prototype.splash = function (x, y, color, n) {
+    this.spawnBurst(x, y, color, n);
+  };
+
+  /** expanding ring (bell shout / shockwaves) */
+  Game.prototype.ringShock = function (x, y, r) {
+    Audio2.play('drum');
+    for (var i = 0; i < 22; i++) {
+      var a = (i / 22) * Math.PI * 2;
+      this.particles.push({
+        x: x, y: y, vx: Math.cos(a) * 340, vy: Math.sin(a) * 340,
+        life: 0.42, max: 1.2, r: 2.4, color: 'rgba(220,180,120,0.75)', grav: 0
+      });
+    }
   };
 
   Game.prototype.spawnBurst = function (x, y, color, n) {
@@ -1335,8 +1482,10 @@
       c.ammo = p.ammo;
       a.textContent = p.ammo;
       var chip = a.parentNode;
-      if (chip && chip.classList) chip.classList.toggle('warn', p.ammo === 0);
+      var wcost = Weapons.get(p.weaponId).cost || 1;
+      if (chip && chip.classList) chip.classList.toggle('warn', p.ammo < wcost);
     }
+    this.updateWeaponHud();
     var k = document.getElementById('key-count');
     if (k && c.keys !== this.levelKeys) { c.keys = this.levelKeys; k.textContent = this.levelKeys; }
     var w = Store.profile ? Store.profile.wallet : 0;
@@ -1362,7 +1511,8 @@
     var badgeEl = document.getElementById('mode-badge');
     if (badgeEl) {
       var label = '';
-      if (this.mode === 'stealth') label = 'SƏSSİZ';
+      if (this.isEndless) label = 'DALĞA ' + (this.levelIndex + 1) + (this.level && this.level.isBossWave ? ' · BOSS' : '');
+      else if (this.mode === 'stealth') label = 'SƏSSİZ';
       else if (this.mode === 'chase') label = 'QAÇ';
       else if (this.mode === 'puzzle' && this.leversTotal) label = 'QOL ' + this.levers + '/' + this.leversTotal;
       else if (this.mode === 'mirror') label = 'ƏKS';
@@ -1929,6 +2079,27 @@
   Game.prototype.advanceLevel = function () {
     if (this._advancing) return;
     var L = this.level;
+    if (this.isEndless) {
+      this._advancing = true;
+      var prof = Store.profile || Store.load();
+      var wave = this.levelIndex + 1;
+      if (wave > (prof.endlessBest || 0)) { prof.endlessBest = wave; }
+      Store.addCoins(6 + wave);
+      Store.save(true);
+      this.toast('Dalğa ' + wave + ' tamamlandı', 'good');
+      Audio2.play('portal');
+      this.flash(0.4);
+      var selfE = this;
+      this.state = 'transition';
+      setTimeout(function () {
+        selfE.deathsHere = 0;
+        selfE.loadLevel(wave, { x: 0 });
+        selfE.state = 'play';
+        selfE._advancing = false;
+        selfE.show(null);
+      }, 420);
+      return;
+    }
     if (!L.exit) return;
     var next = L.exit.to;
     this._advancing = true;
